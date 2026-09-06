@@ -17,9 +17,12 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { BookSync } from "@/components/book-sync";
+import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { todayISO } from "@/lib/format";
 import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
-import { todayISO } from "@/lib/format";
 
 const PRIMARY = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
@@ -46,6 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const importBook = useFarm((s) => s.importBook);
   const fileRef = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState<string | null>(null);
+  const { user, isPending } = useCurrentUserState();
 
   useEffect(() => {
     const p = useFarm.persist.rehydrate();
@@ -53,6 +57,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
     const t = window.setTimeout(() => setHydrated(true), 400);
     return () => window.clearTimeout(t);
   }, [setHydrated]);
+
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
+  if (isPending) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-bg text-muted">
+        <p className="text-sm">Abriendo sesión…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <RedirectToSignIn />;
+  }
 
   function downloadBook() {
     const blob = new Blob([JSON.stringify(exportBook(), null, 2)], {
@@ -149,9 +169,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Libro en este dispositivo. Descárguelo antes de borrar datos del
-              navegador.
+              Libro en su cuenta. JSON es el respaldo del día en el lote.
             </p>
+            <div className="px-1">
+              <UserButton />
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={downloadBook}>
                 <Download className="size-3.5" /> JSON
@@ -179,6 +201,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
         <main className="min-w-0 px-4 py-6 md:px-8 md:py-8">
+          <BookSync />
           {children}
         </main>
       </div>

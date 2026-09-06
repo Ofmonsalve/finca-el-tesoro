@@ -4,6 +4,7 @@ import {
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Shell } from "@/components/shell";
@@ -11,7 +12,14 @@ import appCss from "../styles.css?url";
 
 const APP_NAME = "Finca El Tesoro";
 
+const fetchSessionUser = createServerFn({ method: "GET" }).handler(async () => {
+  const { getSessionUser } = await import("@/lib/auth/verify.server");
+  const u = await getSessionUser();
+  return u ? { id: u.id, email: u.email } : null;
+});
+
 export const Route = createRootRoute({
+  beforeLoad: async () => ({ sessionUser: await fetchSessionUser() }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },

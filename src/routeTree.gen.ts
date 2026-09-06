@@ -17,9 +17,11 @@ import { Route as CostosRouteImport } from './routes/costos'
 import { Route as FinanzasRouteImport } from './routes/finanzas'
 import { Route as HistorialRouteImport } from './routes/historial'
 import { Route as LiquidacionRouteImport } from './routes/liquidacion'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LotesRouteImport } from './routes/lotes'
 import { Route as ProductividadRouteImport } from './routes/productividad'
 import { Route as VentasRouteImport } from './routes/ventas'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -61,6 +63,11 @@ const LiquidacionRoute = LiquidacionRouteImport.update({
   path: '/liquidacion',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LotesRoute = LotesRouteImport.update({
   id: '/lotes',
   path: '/lotes',
@@ -76,6 +83,11 @@ const VentasRoute = VentasRouteImport.update({
   path: '/ventas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -86,9 +98,11 @@ export interface FileRoutesByFullPath {
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
+  '/login': typeof LoginRoute
   '/lotes': typeof LotesRoute
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,9 +113,11 @@ export interface FileRoutesByTo {
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
+  '/login': typeof LoginRoute
   '/lotes': typeof LotesRoute
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,9 +129,11 @@ export interface FileRoutesById {
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
+  '/login': typeof LoginRoute
   '/lotes': typeof LotesRoute
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -128,9 +146,11 @@ export interface FileRouteTypes {
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
+    | '/login'
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -141,9 +161,11 @@ export interface FileRouteTypes {
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
+    | '/login'
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -154,9 +176,11 @@ export interface FileRouteTypes {
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
+    | '/login'
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -168,9 +192,11 @@ export interface RootRouteChildren {
   FinanzasRoute: typeof FinanzasRoute
   HistorialRoute: typeof HistorialRoute
   LiquidacionRoute: typeof LiquidacionRoute
+  LoginRoute: typeof LoginRoute
   LotesRoute: typeof LotesRoute
   ProductividadRoute: typeof ProductividadRoute
   VentasRoute: typeof VentasRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -231,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiquidacionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lotes': {
       id: '/lotes'
       path: '/lotes'
@@ -252,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VentasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -264,9 +304,11 @@ const rootRouteChildren: RootRouteChildren = {
   FinanzasRoute: FinanzasRoute,
   HistorialRoute: HistorialRoute,
   LiquidacionRoute: LiquidacionRoute,
+  LoginRoute: LoginRoute,
   LotesRoute: LotesRoute,
   ProductividadRoute: ProductividadRoute,
   VentasRoute: VentasRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
