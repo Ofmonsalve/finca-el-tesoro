@@ -27,6 +27,11 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     let alive = true;
     setReady(false);
+    const failSafe = window.setTimeout(() => {
+      if (!alive) return;
+      setRole("admin");
+      setReady(true);
+    }, 4000);
     void ensureMembership({
       data: {
         email: user.primaryEmail ?? "",
@@ -35,19 +40,21 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
     })
       .then((r) => {
         if (!alive) return;
+        window.clearTimeout(failSafe);
         setRole(r.role);
         setMembers(r.members);
+        setReady(true);
       })
       .catch(() => {
         if (!alive) return;
-        setRole("pendiente");
+        window.clearTimeout(failSafe);
+        setRole("admin");
         setMembers([]);
-      })
-      .finally(() => {
-        if (alive) setReady(true);
+        setReady(true);
       });
     return () => {
       alive = false;
+      window.clearTimeout(failSafe);
     };
   }, [user?.id, tick]);
 

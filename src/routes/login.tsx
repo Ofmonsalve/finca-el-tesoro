@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import {
   GROK_PROVIDERS,
@@ -8,11 +8,17 @@ import {
 } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
+import { stashPreviewToken } from "@/lib/preview-token";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
+function tokenOf(data: unknown): string | undefined {
+  if (!data || typeof data !== "object") return;
+  const t = (data as { token?: unknown }).token;
+  return typeof t === "string" ? t : undefined;
+}
+
 function Login() {
-  const nav = useNavigate();
   const [mode, setMode] = useState<"entrar" | "crear">("entrar");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,24 +32,25 @@ function Login() {
     setBusy(true);
     try {
       if (mode === "crear") {
-        const { error } = await authClient.signUp.email({
+        const { data, error } = await authClient.signUp.email({
           email: email.trim(),
           password,
           name: name.trim() || email.trim(),
         });
         if (error) throw new Error(error.message);
+        stashPreviewToken(tokenOf(data));
       } else {
-        const { error } = await authClient.signIn.email({
+        const { data, error } = await authClient.signIn.email({
           email: email.trim(),
           password,
         });
         if (error) throw new Error(error.message);
+        stashPreviewToken(tokenOf(data));
       }
       await authClient.getSession();
-      await nav({ to: "/" });
+      window.location.assign("/");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "No se pudo entrar.");
-    } finally {
       setBusy(false);
     }
   }
@@ -57,8 +64,8 @@ function Login() {
           </p>
           <h1 className="font-display text-4xl tracking-tight">Entrar</h1>
           <p className="mt-2 text-sm text-muted">
-            El libro de cosecha queda atado a su cuenta. Un dispositivo, o
-            varios: el mismo kilo no se mezcla con el de otro usuario.
+            Un libro. El primero que entra es administrador. Google o correo
+            con contraseña de 8 caracteres.
           </p>
         </header>
 
@@ -73,7 +80,21 @@ function Login() {
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+                  disabled={busy}
+                  onClick={() => {
+                    setErr(null);
+                    setBusy(true);
+                    void signIn(p.providerId, { callbackURL: "/" }).catch(
+                      (ex: unknown) => {
+                        setBusy(false);
+                        setErr(
+                          ex instanceof Error
+                            ? ex.message
+                            : "No se pudo abrir el acceso. Permita ventanas emergentes.",
+                        );
+                      },
+                    );
+                  }}
                 >
                   Continuar con {p.label}
                 </Button>
