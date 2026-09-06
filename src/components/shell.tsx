@@ -19,14 +19,13 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { BookSync } from "@/components/book-sync";
+import { ClaimAdminButton } from "@/components/claim-admin";
 import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { todayISO } from "@/lib/format";
 import {
   canExport,
-  canManageTeam,
-  canRead,
   canRestore,
   roleLabel,
 } from "@/lib/roles";
@@ -221,11 +220,7 @@ function ShellApp({
             <div className="mt-4 px-3 pb-1 text-[10px] uppercase tracking-widest text-subtle">
               Análisis
             </div>
-            {NavList(
-              canManageTeam(role)
-                ? MORE
-                : MORE.filter((i) => i.to !== "/equipo"),
-            )}
+            {NavList(MORE)}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
@@ -234,6 +229,7 @@ function ShellApp({
             <div className="px-1">
               <UserButton />
             </div>
+            <ClaimAdminButton className="px-1" />
             {canExport(role) ? (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={downloadBook}>
@@ -266,20 +262,7 @@ function ShellApp({
         </aside>
         <main className="min-w-0 px-4 py-6 md:px-8 md:py-8">
           {!ready ? (
-            <p className="text-sm text-muted">Comprobando rol…</p>
-          ) : !canRead(role) ? (
-            <div className="mx-auto max-w-md space-y-3">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-                Acceso
-              </p>
-              <h1 className="font-display text-3xl tracking-tight">
-                Pendiente de autorización
-              </h1>
-              <p className="text-sm text-muted">
-                Ya tiene cuenta. El administrador debe asignarle un rol en
-                Equipo para ver o registrar la cosecha.
-              </p>
-            </div>
+            <p className="text-sm text-muted">Abriendo el libro…</p>
           ) : (
             <>
               <BookSync />

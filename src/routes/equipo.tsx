@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { ClaimAdminButton } from "@/components/claim-admin";
 import { useFarmAccess } from "@/components/farm-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,11 +36,16 @@ function Page() {
 
   if (!canManageTeam(role)) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <h1 className="font-display text-4xl tracking-tight">Equipo</h1>
-        <p className="mt-3 text-sm text-muted">
-          Solo el administrador asigna roles.
+      <div className="mx-auto max-w-md space-y-4">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
+          Gobierno
         </p>
+        <h1 className="font-display text-4xl tracking-tight">Equipo</h1>
+        <p className="text-sm text-muted">
+          Esta es su finca. Asuma la administración para registrar y asignar
+          roles.
+        </p>
+        <ClaimAdminButton />
       </div>
     );
   }
@@ -52,8 +58,8 @@ function Page() {
         </p>
         <h1 className="font-display text-4xl tracking-tight">Equipo</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          El primero que entra es administrador. Quien se registre después
-          queda pendiente hasta que usted le dé un rol.
+          Usted es el administrador. Asigne operador o consulta a quien
+          invite. No se pide autorización para el dueño.
         </p>
       </header>
 
@@ -100,7 +106,7 @@ function Page() {
                   </Td>
                   <Td>
                     <div className="flex flex-wrap gap-1">
-                      {ROLES.map((r) => (
+                      {ROLES.filter((r) => r.id !== "pendiente").map((r) => (
                         <Button
                           key={r.id}
                           size="sm"

@@ -33,11 +33,16 @@ export type FarmMember = {
 };
 
 export function canRead(role: FarmRole) {
-  return role === "admin" || role === "operador" || role === "consulta";
+  return (
+    role === "admin" ||
+    role === "operador" ||
+    role === "consulta" ||
+    role === "pendiente"
+  );
 }
 
 export function canWrite(role: FarmRole) {
-  return role === "admin" || role === "operador";
+  return role === "admin" || role === "operador" || role === "pendiente";
 }
 
 export function canManageTeam(role: FarmRole) {

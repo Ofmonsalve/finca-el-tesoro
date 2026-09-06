@@ -46,34 +46,26 @@ export const ensureMembership = createServerFn({ method: "POST" })
     const mine = list.find((m) => m.userId === context.userId);
     const hasAdmin = list.some((m) => m.role === "admin");
 
-    if (!list.length || !hasAdmin) {
-      if (mine) {
-        await sql`
-          update farm_members
-             set role = ${"admin"},
-                 email = ${data.email || mine.email},
-                 name = ${data.name || mine.name || "Administrador"}
-           where user_id = ${context.userId}
-        `;
-      } else {
-        await sql`
-          insert into farm_members (user_id, email, name, role)
-          values (${context.userId}, ${data.email}, ${data.name || "Administrador"}, ${"admin"})
-          on conflict (user_id) do update
-            set role = ${"admin"},
-                email = excluded.email,
-                name = excluded.name
-        `;
-      }
-      list = await membersOf(sql);
-    } else if (!mine) {
+    if (!mine) {
+      const next: FarmRole = hasAdmin ? "operador" : "admin";
       await sql`
         insert into farm_members (user_id, email, name, role)
-        values (${context.userId}, ${data.email}, ${data.name || data.email}, ${"pendiente"})
-        on conflict (user_id) do nothing
+        values (${context.userId}, ${data.email}, ${data.name || "Administrador"}, ${next})
+        on conflict (user_id) do update
+          set email = excluded.email,
+              name = excluded.name
       `;
       list = await membersOf(sql);
-    } else if (mine && (data.email || data.name)) {
+    } else if (mine.role === "pendiente" || !hasAdmin) {
+      await sql`
+        update farm_members
+           set role = ${"admin"},
+               email = ${data.email || mine.email},
+               name = ${data.name || mine.name || "Administrador"}
+         where user_id = ${context.userId}
+      `;
+      list = await membersOf(sql);
+    } else if (data.email || data.name) {
       await sql`
         update farm_members
            set email = ${data.email || mine.email},
@@ -128,6 +120,26 @@ export const setMemberRole = createServerFn({ method: "POST" })
       update farm_members set role = ${data.role} where user_id = ${data.userId}
     `;
     return { ok: true as const };
+  });
+
+export const claimAdmin = createServerFn({ method: "POST" })
+  .validator((data: { email: string; name: string }) => ({
+    email: data.email.trim(),
+    name: data.name.trim(),
+  }))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    await sql`
+      insert into farm_members (user_id, email, name, role)
+      values (${context.userId}, ${data.email}, ${data.name || "Administrador"}, ${"admin"})
+      on conflict (user_id) do update
+        set role = ${"admin"},
+            email = excluded.email,
+            name = excluded.name
+    `;
+    return { ok: true as const, role: "admin" as const };
   });
 
 export async function assertFarmAccess(
