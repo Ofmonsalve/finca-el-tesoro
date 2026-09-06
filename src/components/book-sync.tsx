@@ -1,17 +1,20 @@
 import { useEffect, useRef } from "react";
+import { useFarmAccess } from "@/components/farm-access";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { loadFarmBook, saveFarmBook } from "@/lib/farm-book";
+import { canRead, canWrite } from "@/lib/roles";
 import { useFarm } from "@/lib/store";
 
-/** Pulls the cloud book once signed in; pushes local changes after a pause. */
+/** Pulls the farm book once the member can read; pushes only if they can write. */
 export function BookSync() {
   const { user, isPending } = useCurrentUserState();
+  const { role, ready } = useFarmAccess();
   const hydrated = useFarm((s) => s.hydrated);
   const pulling = useRef(false);
   const timer = useRef<number | null>(null);
 
   useEffect(() => {
-    if (isPending || !user || !hydrated) return;
+    if (isPending || !user || !hydrated || !ready || !canRead(role)) return;
     let alive = true;
     pulling.current = true;
     void loadFarmBook()
@@ -21,26 +24,23 @@ export function BookSync() {
         const localKg = Array.isArray(local.sessions) && local.sessions.length;
         if (remote && typeof remote === "object") {
           useFarm.getState().importBook(remote);
-        } else if (localKg) {
+        } else if (localKg && canWrite(role)) {
           return saveFarmBook({ data: local });
         }
       })
-      .catch(() => {
-        /* signed out mid-flight or red de la finca */
-      })
+      .catch(() => {})
       .finally(() => {
         pulling.current = false;
       });
     return () => {
       alive = false;
     };
-  }, [user?.id, isPending, hydrated]);
+  }, [user?.id, isPending, hydrated, ready, role]);
 
   useEffect(() => {
-    if (isPending || !user) return;
-    const unsub = useFarm.subscribe((state, prev) => {
+    if (isPending || !user || !canWrite(role)) return;
+    const unsub = useFarm.subscribe(() => {
       if (pulling.current) return;
-      if (state.hydrated !== prev.hydrated && state.hydrated) return;
       if (timer.current) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {
         const book = useFarm.getState().exportBook() as import("@/lib/farm-book").FarmBookPayload;
@@ -51,7 +51,7 @@ export function BookSync() {
       unsub();
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [user?.id, isPending]);
+  }, [user?.id, isPending, role]);
 
   return null;
 }

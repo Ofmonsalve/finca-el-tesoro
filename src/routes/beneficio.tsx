@@ -20,6 +20,8 @@ import { useFarm } from "@/lib/store";
 import type { ProcessBatch } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { batchYield, expectedAt } from "@/lib/yield";
+import { useFarmAccess } from "@/components/farm-access";
+import { canWrite } from "@/lib/roles";
 
 export const Route = createFileRoute("/beneficio")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -238,6 +240,8 @@ function BatchBoard({
   onUndo: () => void;
 }) {
   const y = batchYield(batch);
+  const { role } = useFarmAccess();
+  const writable = canWrite(role);
   const done = batch.events.map((e) => e.stage);
   const next = nextPendingStage(done);
   const [kgOut, setKgOut] = useState(String(batch.kgActual));
@@ -262,7 +266,7 @@ function BatchBoard({
             entrada {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
           </CardHint>
         </div>
-        {next?.id === "venta" || batch.saleId ? (
+        {writable && (next?.id === "venta" || batch.saleId) ? (
           <Button asChild variant="accent">
             <Link to="/ventas">Registrar venta</Link>
           </Button>
@@ -365,7 +369,7 @@ function BatchBoard({
         })}
       </ol>
 
-      {next && next.id !== "venta" ? (
+      {writable && next && next.id !== "venta" ? (
         <div className="mt-6 rounded-xl border border-border bg-elevated/50 p-4">
           <div className="flex items-center gap-2 text-sm">
             <ChevronRight className="size-4 text-accent" />
@@ -436,7 +440,7 @@ function BatchBoard({
           <p className="text-sm text-muted">
             Pergamino despachado. Complete el ingreso en Ventas.
           </p>
-          {batch.events.length ? (
+          {writable && batch.events.length ? (
             <Button variant="ghost" onClick={onUndo}>
               <Undo2 className="size-4" /> Deshacer última
             </Button>

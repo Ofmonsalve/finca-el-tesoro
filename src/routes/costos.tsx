@@ -15,6 +15,7 @@ import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import type { CostLine } from "@/lib/types";
 import { uid } from "@/lib/utils";
+import { WriteGate } from "@/components/write-gate";
 
 export const Route = createFileRoute("/costos")({ component: Page });
 
@@ -208,6 +209,7 @@ function Page() {
             ))}
           </dl>
         </Card>
+        <WriteGate>
         <Card>
           <CardTitle>Nuevo gasto</CardTitle>
           <CardHint>
@@ -271,6 +273,7 @@ function Page() {
             Guardar gasto
           </Button>
         </Card>
+        </WriteGate>
       </div>
 
       <Card>

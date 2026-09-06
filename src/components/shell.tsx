@@ -8,6 +8,7 @@ import {
   Leaf,
   Menu,
   Scale,
+  Shield,
   Tractor,
   Users,
   Wallet,
@@ -18,9 +19,17 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { BookSync } from "@/components/book-sync";
+import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { todayISO } from "@/lib/format";
+import {
+  canExport,
+  canManageTeam,
+  canRead,
+  canRestore,
+  roleLabel,
+} from "@/lib/roles";
 import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
@@ -39,6 +48,7 @@ const MORE = [
   { to: "/ventas", label: "Ventas", icon: Scale },
   { to: "/finanzas", label: "Finanzas", icon: Landmark },
   { to: "/contabilidad", label: "Libro", icon: BookOpen },
+  { to: "/equipo", label: "Equipo", icon: Shield },
 ] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -73,6 +83,47 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <RedirectToSignIn />;
   }
+
+  return (
+    <FarmAccessProvider>
+      <ShellApp
+        pathname={pathname}
+        open={open}
+        setOpen={setOpen}
+        fileRef={fileRef}
+        note={note}
+        setNote={setNote}
+        exportBook={exportBook}
+        importBook={importBook}
+      >
+        {children}
+      </ShellApp>
+    </FarmAccessProvider>
+  );
+}
+
+function ShellApp({
+  children,
+  pathname,
+  open,
+  setOpen,
+  fileRef,
+  note,
+  setNote,
+  exportBook,
+  importBook,
+}: {
+  children: React.ReactNode;
+  pathname: string;
+  open: boolean;
+  setOpen: (v: boolean | ((x: boolean) => boolean)) => void;
+  fileRef: React.RefObject<HTMLInputElement | null>;
+  note: string | null;
+  setNote: (v: string | null) => void;
+  exportBook: () => Record<string, unknown>;
+  importBook: (data: unknown) => { ok: boolean; error?: string };
+}) {
+  const { role, ready } = useFarmAccess();
 
   function downloadBook() {
     const blob = new Blob([JSON.stringify(exportBook(), null, 2)], {
@@ -159,25 +210,36 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <p className="mt-1 text-xs text-muted">
               Caturra / Castillo · 0,87 ha
             </p>
+            {ready ? (
+              <p className="mt-2 text-[11px] uppercase tracking-widest text-accent">
+                {roleLabel(role)}
+              </p>
+            ) : null}
           </div>
           <nav className="flex flex-col gap-0.5 p-3">
             {NavList(PRIMARY)}
             <div className="mt-4 px-3 pb-1 text-[10px] uppercase tracking-widest text-subtle">
               Análisis
             </div>
-            {NavList(MORE)}
+            {NavList(
+              canManageTeam(role)
+                ? MORE
+                : MORE.filter((i) => i.to !== "/equipo"),
+            )}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Libro en su cuenta. JSON es el respaldo del día en el lote.
+              Un libro de finca. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />
             </div>
+            {canExport(role) ? (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={downloadBook}>
                 <Download className="size-3.5" /> JSON
               </Button>
+              {canRestore(role) ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -185,7 +247,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               >
                 <Upload className="size-3.5" /> Restaurar
               </Button>
+              ) : null}
             </div>
+            ) : null}
             <input
               ref={fileRef}
               type="file"
@@ -201,8 +265,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
         <main className="min-w-0 px-4 py-6 md:px-8 md:py-8">
-          <BookSync />
-          {children}
+          {!ready ? (
+            <p className="text-sm text-muted">Comprobando rol…</p>
+          ) : !canRead(role) ? (
+            <div className="mx-auto max-w-md space-y-3">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
+                Acceso
+              </p>
+              <h1 className="font-display text-3xl tracking-tight">
+                Pendiente de autorización
+              </h1>
+              <p className="text-sm text-muted">
+                Ya tiene cuenta. El administrador debe asignarle un rol en
+                Equipo para ver o registrar la cosecha.
+              </p>
+            </div>
+          ) : (
+            <>
+              <BookSync />
+              {children}
+            </>
+          )}
         </main>
       </div>
     </div>

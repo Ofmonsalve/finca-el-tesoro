@@ -10,6 +10,9 @@ import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import { uid } from "@/lib/utils";
 import { Kpi } from "@/components/kpi";
+import { WriteGate } from "@/components/write-gate";
+import { useFarmAccess } from "@/components/farm-access";
+import { canWrite } from "@/lib/roles";
 
 export const Route = createFileRoute("/liquidacion")({ component: Page });
 
@@ -28,6 +31,8 @@ type Slip = {
 function Page() {
   const farm = useFarm();
   const S = farmStats(farm);
+  const { role } = useFarmAccess();
+  const writable = canWrite(role);
   const saveLiquidation = useFarm((s) => s.saveLiquidation);
   const [trabajador, setTrabajador] = useState("");
   const [monto, setMonto] = useState("");
@@ -140,6 +145,7 @@ function Page() {
         <Kpi label="Pagado" value={fmtMoney(S.paid)} />
         <Kpi label="Pendiente" value={fmtMoney(S.pendMO)} />
       </div>
+      <WriteGate>
       <Card className="no-print">
         <CardTitle>Registrar pago</CardTitle>
         {err ? (
@@ -181,6 +187,7 @@ function Page() {
           Registrar y emitir desprendible
         </Button>
       </Card>
+      </WriteGate>
 
       {slip ? <Payslip slip={slip} /> : null}
 
@@ -213,7 +220,7 @@ function Page() {
                     {fmtMoney(w.alim)}
                   </Td>
                   <Td>
-                    {w.pend > 0 ? (
+                    {w.pend > 0 && writable ? (
                       <Button
                         variant="outline"
                         size="sm"

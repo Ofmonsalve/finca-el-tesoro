@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { HarvestForm } from "@/components/harvest-form";
+import { WriteGate } from "@/components/write-gate";
 
 export const Route = createFileRoute("/cosecha")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -24,7 +25,9 @@ function Page() {
           guardar, el lote entra a tolva.
         </p>
       </header>
-      <HarvestForm editId={ses} />
+      <WriteGate>
+        <HarvestForm editId={ses} />
+      </WriteGate>
     </div>
   );
 }

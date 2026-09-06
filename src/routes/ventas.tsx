@@ -12,6 +12,7 @@ import { PAY_METHODS, nextPendingStage, type PayMethodId } from "@/lib/process";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import { uid } from "@/lib/utils";
+import { WriteGate } from "@/components/write-gate";
 
 export const Route = createFileRoute("/ventas")({ component: Page });
 
@@ -93,6 +94,7 @@ function Page() {
           hint="Producido − vendido"
         />
       </div>
+      <WriteGate>
       <Card>
         <CardTitle>Registrar venta</CardTitle>
         <CardHint>
@@ -179,6 +181,7 @@ function Page() {
           Guardar venta
         </Button>
       </Card>
+      </WriteGate>
       <Card>
         <CardTitle>Libro de ventas</CardTitle>
         <div className="mt-4">

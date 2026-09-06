@@ -14,6 +14,7 @@ import { Route as BeneficioRouteImport } from './routes/beneficio'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as CosechaRouteImport } from './routes/cosecha'
 import { Route as CostosRouteImport } from './routes/costos'
+import { Route as EquipoRouteImport } from './routes/equipo'
 import { Route as FinanzasRouteImport } from './routes/finanzas'
 import { Route as HistorialRouteImport } from './routes/historial'
 import { Route as LiquidacionRouteImport } from './routes/liquidacion'
@@ -46,6 +47,11 @@ const CosechaRoute = CosechaRouteImport.update({
 const CostosRoute = CostosRouteImport.update({
   id: '/costos',
   path: '/costos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EquipoRoute = EquipoRouteImport.update({
+  id: '/equipo',
+  path: '/equipo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanzasRoute = FinanzasRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
   '/costos': typeof CostosRoute
+  '/equipo': typeof EquipoRoute
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
   '/costos': typeof CostosRoute
+  '/equipo': typeof EquipoRoute
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
   '/costos': typeof CostosRoute
+  '/equipo': typeof EquipoRoute
   '/finanzas': typeof FinanzasRoute
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/contabilidad'
     | '/cosecha'
     | '/costos'
+    | '/equipo'
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/contabilidad'
     | '/cosecha'
     | '/costos'
+    | '/equipo'
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/contabilidad'
     | '/cosecha'
     | '/costos'
+    | '/equipo'
     | '/finanzas'
     | '/historial'
     | '/liquidacion'
@@ -189,6 +201,7 @@ export interface RootRouteChildren {
   ContabilidadRoute: typeof ContabilidadRoute
   CosechaRoute: typeof CosechaRoute
   CostosRoute: typeof CostosRoute
+  EquipoRoute: typeof EquipoRoute
   FinanzasRoute: typeof FinanzasRoute
   HistorialRoute: typeof HistorialRoute
   LiquidacionRoute: typeof LiquidacionRoute
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/costos'
       fullPath: '/costos'
       preLoaderRoute: typeof CostosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/equipo': {
+      id: '/equipo'
+      path: '/equipo'
+      fullPath: '/equipo'
+      preLoaderRoute: typeof EquipoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/finanzas': {
@@ -301,6 +321,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContabilidadRoute: ContabilidadRoute,
   CosechaRoute: CosechaRoute,
   CostosRoute: CostosRoute,
+  EquipoRoute: EquipoRoute,
   FinanzasRoute: FinanzasRoute,
   HistorialRoute: HistorialRoute,
   LiquidacionRoute: LiquidacionRoute,
