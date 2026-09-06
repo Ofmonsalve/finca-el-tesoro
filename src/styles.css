@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #080a09;
+  --color-surface: #101412;
+  --color-elevated: #171c19;
+  --color-fg: #f2f0ea;
+  --color-muted: #9ea49c;
+  --color-subtle: #6b726c;
+  --color-border: #2a322e;
+  --color-accent: #8fb9a3;
+  --color-accent-fg: #08110c;
+  --color-danger: #d07262;
+  --color-warn: #c9b07a;
+  --color-ok: #7fb089;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    min-height: 100%;
+    letter-spacing: 0.01em;
+  }
+  #app {
+    min-height: 100dvh;
+  }
+  * {
+    border-color: var(--color-border);
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    letter-spacing: -0.03em;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .payslip {
+    break-inside: avoid;
+    border: 1px solid #222;
+    color: #111;
+    background: #fff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
