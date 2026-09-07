@@ -10,7 +10,7 @@ import { Field, Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/fields";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtDate, fmtKg, fmtMoney, fmtNum, fmtPct, n, todayISO } from "@/lib/format";
-import { LOTS, LOT_CODES, type LotCode } from "@/lib/lots";
+import { harvestLots, lotNombre, type LotCode } from "@/lib/lots";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import type { CostLine } from "@/lib/types";
@@ -235,9 +235,9 @@ function Page() {
                 onChange={(e) => setLote(e.target.value as LotCode | "")}
               >
                 <option value="">Finca (prorrateo)</option>
-                {LOT_CODES.filter((c) => c !== "FT-FINCA").map((c) => (
-                  <option key={c} value={c}>
-                    {c} {LOTS[c].nombre}
+                {harvestLots(farm.lots).map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.code} {l.nombre}
                   </option>
                 ))}
               </select>
@@ -306,7 +306,7 @@ function Page() {
                 <tr key={r.code}>
                   <Td>
                     {r.code}{" "}
-                    <span className="text-muted">{LOTS[r.code].nombre}</span>
+                    <span className="text-muted">{lotNombre(farm.lots, r.code)}</span>
                   </Td>
                   <Td className="text-right tabular">{fmtNum(r.kg, 1)}</Td>
                   <Td className="text-right tabular">{fmtPct(r.share * 100)}</Td>
@@ -393,6 +393,7 @@ function Page() {
 }
 
 function CostFlow({ S }: { S: ReturnType<typeof farmStats> }) {
+  const lots = useFarm((s) => s.lots);
   const sh = S.sheet;
   const C = S.cargaBook;
   const steps = [
@@ -447,7 +448,7 @@ function CostFlow({ S }: { S: ReturnType<typeof farmStats> }) {
       rows: sh.byLot
         .filter((r) => r.total > 0)
         .map((r) => ({
-          k: `${r.code} ${LOTS[r.code].nombre}`,
+          k: `${r.code} ${lotNombre(lots, r.code)}`,
           f: `cosecha ${fmtMoney(r.cosecha)} + directo ${fmtMoney(r.otrosDir)} + ${(r.share * 100).toFixed(1)} % × prorrateo`,
           v: r.total,
         })),

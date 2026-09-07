@@ -3,14 +3,15 @@ import { Kpi } from "@/components/kpi";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtKg, fmtMoney, fmtNum, fmtPct } from "@/lib/format";
-import { LOTS } from "@/lib/lots";
+import { lotNombre } from "@/lib/lots";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 
 export const Route = createFileRoute("/finanzas")({ component: Page });
 
 function Page() {
-  const S = farmStats(useFarm());
+  const farm = useFarm();
+  const S = farmStats(farm);
   const C = S.cargaBook;
   const precioCps = S.kgCpsVendido > 0 ? S.ing / S.kgCpsVendido : 0;
   const beCargas =
@@ -148,7 +149,7 @@ function Page() {
                 <tr key={r.code}>
                   <Td>
                     {r.code}{" "}
-                    <span className="text-muted">{LOTS[r.code].nombre}</span>
+                    <span className="text-muted">{lotNombre(farm.lots, r.code)}</span>
                   </Td>
                   <Td className="text-right tabular">{fmtNum(r.kg, 1)}</Td>
                   <Td className="text-right tabular">{fmtMoney(r.costo)}</Td>

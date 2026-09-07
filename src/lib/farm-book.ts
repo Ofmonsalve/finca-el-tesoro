@@ -21,6 +21,7 @@ export type FarmBookPayload = {
   sales: Json[];
   costs: Json[];
   journals: Json[];
+  lots?: Json[];
 };
 
 function parseBook(raw: string): FarmBookPayload | null {

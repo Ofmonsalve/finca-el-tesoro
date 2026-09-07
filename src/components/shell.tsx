@@ -24,11 +24,8 @@ import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { todayISO } from "@/lib/format";
-import {
-  canExport,
-  canRestore,
-  roleLabel,
-} from "@/lib/roles";
+import { canExport, canRestore, roleLabel } from "@/lib/roles";
+import { areaActiva } from "@/lib/lots";
 import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
@@ -123,6 +120,8 @@ function ShellApp({
   importBook: (data: unknown) => { ok: boolean; error?: string };
 }) {
   const { role, ready } = useFarmAccess();
+  const lots = useFarm((s) => s.lots);
+  const ha = areaActiva(lots);
 
   function downloadBook() {
     const blob = new Blob([JSON.stringify(exportBook(), null, 2)], {
@@ -194,7 +193,7 @@ function ShellApp({
         </Button>
       </header>
 
-      <div className="md:grid md:grid-cols-[240px_1fr]">
+      <div className="md:grid md:grid-cols-[260px_1fr]">
         <aside
           className={cn(
             "border-border bg-surface md:sticky md:top-0 md:h-dvh md:overflow-y-auto md:border-r no-print",
@@ -207,7 +206,7 @@ function ShellApp({
             </div>
             <div className="font-display text-2xl tracking-tight">El Tesoro</div>
             <p className="mt-1 text-xs text-muted">
-              Caturra / Castillo · 0,87 ha
+              Caturra / Castillo · {ha.toFixed(2).replace(".", ",")} ha
             </p>
             {ready ? (
               <p className="mt-2 text-[11px] uppercase tracking-widest text-accent">
@@ -260,7 +259,7 @@ function ShellApp({
             {note ? <p className="text-xs text-accent">{note}</p> : null}
           </div>
         </aside>
-        <main className="min-w-0 px-4 py-6 md:px-8 md:py-8">
+        <main className="min-w-0 px-5 py-7 md:px-10 md:py-10">
           {!ready ? (
             <p className="text-sm text-muted">Abriendo el libro…</p>
           ) : (

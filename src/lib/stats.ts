@@ -1,4 +1,4 @@
-import { HARVEST_LOTS, LOTS, type LotCode } from "./lots";
+import { areaActiva, harvestLots, rollupCode, DEFAULT_LOTS, type LotCode, type FarmLot } from "./lots";
 import type { FarmState } from "./store";
 import type { CostLine, ProcessBatch, Sale } from "./types";
 import {
@@ -15,6 +15,15 @@ export function farmStats(s: FarmState) {
   const sales = s.sales ?? [];
   const liquidations = s.liquidations ?? [];
   const costs = s.costs ?? [];
+  const lots: FarmLot[] = s.lots?.length ? s.lots : DEFAULT_LOTS;
+  const active = harvestLots(lots);
+  const ha = areaActiva(lots) || 0.87;
+  const codes = [
+    ...new Set([
+      ...active.map((l) => l.code),
+      ...sessions.map((x) => rollupCode(lots, x.lote)),
+    ]),
+  ];
   const kg = sessions.reduce((a, x) => a + x.totKg, 0);
   const pay = sessions.reduce((a, x) => a + x.totPay, 0);
   const alim = sessions.reduce((a, x) => a + x.totAlim, 0);
@@ -33,10 +42,10 @@ export function farmStats(s: FarmState) {
     string,
     { kg: number; cost: number; hrs: number; n: number }
   > = {};
-  for (const code of HARVEST_LOTS) byLot[code] = { kg: 0, cost: 0, hrs: 0, n: 0 };
+  for (const code of codes) byLot[code] = { kg: 0, cost: 0, hrs: 0, n: 0 };
   byLot["FT-FINCA"] = { kg: 0, cost: 0, hrs: 0, n: 0 };
   sessions.forEach((ses) => {
-    const key = ses.lote;
+    const key = rollupCode(lots, ses.lote);
     if (!byLot[key]) byLot[key] = { kg: 0, cost: 0, hrs: 0, n: 0 };
     byLot[key].kg += ses.totKg;
     byLot[key].cost += ses.totCost;
@@ -73,7 +82,7 @@ export function farmStats(s: FarmState) {
   });
   const batches = s.batches ?? [];
   const inProcess = batches.filter((b) => !b.saleId).length;
-  const yieldBook = farmYield(sessions, batches, 0.87);
+  const yieldBook = farmYield(sessions, batches, ha, lots);
   const factor = yieldBook.factorPlanW || 6;
   const cps = yieldBook.cpsEst;
   const kgCpsVendido = sales.reduce((a, v) => {
@@ -109,6 +118,8 @@ export function farmStats(s: FarmState) {
     cpsFuente: yieldBook.cpsReal != null ? "bodega" : "estimado",
     cargas: cargaBook.denomCargas,
     factor: yieldBook.factorReal ?? yieldBook.factorPlanW,
+    lots,
+    ha,
   });
   return {
     kg,
@@ -139,12 +150,12 @@ export function farmStats(s: FarmState) {
     byDay: [...byDay.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([fecha, v]) => ({ fecha, ...v })),
-    lotMeta: LOTS,
+    lotMeta: Object.fromEntries(active.map((l) => [l.code, l])),
     yieldBook,
     mermaBook,
     cargaBook,
     sheet,
-    pnl: buildLotPnl(sheet, sales, batches),
+    pnl: buildLotPnl(sheet, sales, batches, lots),
   };
 }
 
@@ -152,8 +163,9 @@ export function sessionsOn(sessions: FarmState["sessions"], fecha: string) {
   return sessions.filter((s) => s.fecha === fecha);
 }
 
-export function lotLabel(code: LotCode | string) {
-  return LOTS[code as LotCode]?.nombre ?? code;
+export function lotLabel(code: LotCode | string, lots?: FarmLot[]) {
+  const L = (lots?.length ? lots : DEFAULT_LOTS).find((l) => l.code === code);
+  return L ? `${L.code} ${L.nombre}` : code;
 }
 
 const CATS: CostLine["categoria"][] = [
@@ -234,6 +246,8 @@ function buildCostSheet(input: {
   cpsFuente: "bodega" | "estimado";
   cargas: number;
   factor: number;
+  lots: FarmLot[];
+  ha: number;
 }): CostSheet {
   const jornadas = input.sessions.reduce(
     (a, s) => a + s.trabajadores.filter((w) => w.nombre.trim()).length,
@@ -243,30 +257,33 @@ function buildCostSheet(input: {
     CostLine["categoria"],
     number
   >;
+  const codes = harvestLots(input.lots).map((l) => l.code);
   const otrosDir: Record<string, number> = {};
-  for (const c of HARVEST_LOTS) otrosDir[c] = 0;
+  for (const c of codes) otrosDir[c] = 0;
   let otrosPr = 0;
   for (const c of input.costs) {
     otrosByCat[c.categoria] += c.monto;
-    if (c.lote && HARVEST_LOTS.includes(c.lote as (typeof HARVEST_LOTS)[number])) {
-      otrosDir[c.lote] += c.monto;
+    const lot = c.lote ? rollupCode(input.lots, c.lote) : "";
+    if (lot && codes.includes(lot)) {
+      otrosDir[lot] = (otrosDir[lot] || 0) + c.monto;
     } else {
       otrosPr += c.monto;
     }
   }
-  const kgLots = HARVEST_LOTS.reduce((a, code) => {
+  const kgLots = codes.reduce((a, code) => {
     const kg = input.sessions
-      .filter((s) => s.lote === code)
+      .filter((s) => rollupCode(input.lots, s.lote) === code)
       .reduce((x, s) => x + s.totKg, 0);
     return a + kg;
   }, 0);
-  const byLot: LotCostRow[] = HARVEST_LOTS.map((code) => {
-    const L = LOTS[code];
-    const ss = input.sessions.filter((s) => s.lote === code);
+  const haFarm = input.ha || AREA_FINCA_HA;
+  const byLot: LotCostRow[] = harvestLots(input.lots).map((L) => {
+    const code = L.code;
+    const ss = input.sessions.filter((s) => rollupCode(input.lots, s.lote) === code);
     const kg = ss.reduce((a, s) => a + s.totKg, 0);
     const cosecha = ss.reduce((a, s) => a + s.totCost, 0);
     const share =
-      kgLots > 0 ? kg / kgLots : L.areaHa / AREA_FINCA_HA;
+      kgLots > 0 ? kg / kgLots : haFarm ? L.areaHa / haFarm : 0;
     const pr = otrosPr * share;
     const dir = otrosDir[code] || 0;
     const total = cosecha + dir + pr;
@@ -295,7 +312,7 @@ function buildCostSheet(input: {
     totalCps: div(input.costoTotal, input.cpsKg),
     totalCarga: div(input.costoTotal, input.cargas),
     totalArroba: div(input.costoTotal, input.cpsKg / ARROBA_KG),
-    totalHa: div(input.costoTotal, AREA_FINCA_HA),
+    totalHa: div(input.costoTotal, haFarm),
     alimJornada: div(input.alim, jornadas),
     moHora: div(input.pay, input.hrs),
   };
@@ -354,7 +371,7 @@ function buildCostSheet(input: {
     alim: input.alim,
     cosecha: input.costoCosecha,
     otros: input.otherCosts,
-    otrosDir: HARVEST_LOTS.reduce((a, c) => a + (otrosDir[c] || 0), 0),
+    otrosDir: codes.reduce((a, c) => a + (otrosDir[c] || 0), 0),
     otrosPr,
     otrosByCat,
     total: input.costoTotal,
@@ -363,7 +380,7 @@ function buildCostSheet(input: {
     cpsFuente: input.cpsFuente,
     cargas: input.cargas,
     arrobas: input.cpsKg / ARROBA_KG,
-    ha: AREA_FINCA_HA,
+    ha: haFarm,
     jornadas,
     horas: input.hrs,
     factor: input.factor,
@@ -402,14 +419,17 @@ function buildLotPnl(
   sheet: CostSheet,
   sales: Sale[],
   batches: ProcessBatch[],
+  lots: FarmLot[],
 ): LotPnl[] {
+  const codes = harvestLots(lots).map((l) => l.code);
   const ingDir: Record<string, number> = {};
-  for (const c of HARVEST_LOTS) ingDir[c] = 0;
+  for (const c of codes) ingDir[c] = 0;
   let ingPr = 0;
   for (const s of sales) {
     const lot = saleLot(s, batches);
-    if (lot && HARVEST_LOTS.includes(lot as (typeof HARVEST_LOTS)[number])) {
-      ingDir[lot] += s.total;
+    const key = lot ? rollupCode(lots, lot) : "";
+    if (key && codes.includes(key)) {
+      ingDir[key] += s.total;
     } else {
       ingPr += s.total;
     }

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtDate, fmtKg, fmtMoney, fmtNum } from "@/lib/format";
-import { LOTS } from "@/lib/lots";
+import { lotNombre } from "@/lib/lots";
 import { useFarm } from "@/lib/store";
 
 export const Route = createFileRoute("/historial")({ component: Page });
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/historial")({ component: Page });
 function Page() {
   const sessions = useFarm((s) => s.sessions);
   const batches = useFarm((s) => s.batches);
+  const lots = useFarm((s) => s.lots);
   const deleteSession = useFarm((s) => s.deleteSession);
   const [err, setErr] = useState<string | null>(null);
 
@@ -106,7 +107,7 @@ function Page() {
                   <Badge>Pasada {s.pasada}</Badge>
                 </div>
                 <CardHint>
-                  {fmtDate(s.fecha)} · {s.lote} {LOTS[s.lote]?.nombre} ·{" "}
+                  {fmtDate(s.fecha)} · {s.lote} {lotNombre(lots, s.lote)} ·{" "}
                   {s.bloque}
                   {s.responsable ? ` · ${s.responsable}` : ""}
                 </CardHint>

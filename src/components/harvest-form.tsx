@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { LOTS, HARVEST_LOTS, type LotCode } from "@/lib/lots";
+import { harvestLots, lotByCode, type LotCode } from "@/lib/lots";
 import { buildSession, useFarm } from "@/lib/store";
 import { fmtKg, fmtMoney, fmtNum, fmtPct, fmtRatio, n, todayISO } from "@/lib/format";
 import { hoursBetween, uid } from "@/lib/utils";
@@ -37,6 +37,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
   const settings = useFarm((s) => s.settings);
   const sessions = useFarm((s) => s.sessions);
   const batches = useFarm((s) => s.batches);
+  const lotsCat = useFarm((s) => s.lots);
   const saveSession = useFarm((s) => s.saveSession);
   const updateSettings = useFarm((s) => s.updateSettings);
   const farm = useFarm();
@@ -45,8 +46,8 @@ export function HarvestForm({ editId }: { editId?: string }) {
   const [editCode, setEditCode] = useState<string | undefined>();
 
   const [fecha, setFecha] = useState(todayISO());
-  const [lote, setLote] = useState<LotCode>("FT-CEN");
-  const [bloque, setBloque] = useState(LOTS["FT-CEN"].bloques[0]);
+  const [lote, setLote] = useState<LotCode>(harvestLots(undefined)[0]?.code ?? "FT-CEN");
+  const [bloque, setBloque] = useState("General");
   const [tipo, setTipo] = useState<HarvestType>("Principal");
   const [pasada, setPasada] = useState(1);
   const [modelo, setModelo] = useState<PayModel>("por_kg");
@@ -59,6 +60,8 @@ export function HarvestForm({ editId }: { editId?: string }) {
   const [workers, setWorkers] = useState<DraftW[]>([emptyW(), emptyW()]);
   const [lastBatch, setLastBatch] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const activeLots = harvestLots(lotsCat);
+  const currentLot = lotByCode(lotsCat, lote);
 
   useEffect(() => {
     if (!editId) return;
@@ -138,7 +141,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
 
   function setLot(code: LotCode) {
     setLote(code);
-    setBloque(LOTS[code].bloques[0]);
+    setBloque(lotByCode(lotsCat, code)?.bloques[0] ?? "General");
   }
 
   function save(nextLot?: boolean) {
@@ -197,7 +200,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
     if (nextLot) {
       setEditingId(undefined);
       setEditCode(undefined);
-      const order = HARVEST_LOTS;
+      const order = activeLots.map((l) => l.code);
       const ix = order.indexOf(
         lote === "FT-FINCA" ? "FT-CEN" : lote,
       );
@@ -219,7 +222,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
               {tipo} · Pasada {pasada}
             </CardTitle>
             <CardHint>
-              {LOTS[lote].nombre} · {fecha.split("-").reverse().join("/")} ·
+              {currentLot?.nombre ?? lote} · {fecha.split("-").reverse().join("/")} ·
               tarifas en COP
             </CardHint>
           </div>
@@ -309,26 +312,26 @@ export function HarvestForm({ editId }: { editId?: string }) {
             Lote
           </div>
           <div className="flex flex-wrap gap-2">
-            {HARVEST_LOTS.map((code) => (
+            {activeLots.map((L) => (
               <button
-                key={code}
+                key={L.code}
                 type="button"
-                onClick={() => setLot(code)}
+                onClick={() => setLot(L.code)}
                 className={cn(
-                  "min-h-11 rounded-full border px-3 text-xs font-medium",
-                  lote === code
+                  "min-h-11 rounded-full border px-4 text-xs font-medium",
+                  lote === L.code
                     ? "border-accent bg-accent/15 text-accent"
-                    : lotsToday.has(code)
+                    : lotsToday.has(L.code)
                       ? "border-ok/40 text-ok"
                       : "border-border text-muted hover:text-fg",
                 )}
               >
-                {code}
-                {lotsToday.has(code) ? " · ok" : ""}
+                {L.code}
+                {lotsToday.has(L.code) ? " · ok" : ""}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-muted">{LOTS[lote].estado}</p>
+          <p className="mt-2 text-xs text-muted">{currentLot?.estado}</p>
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -337,7 +340,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
               value={bloque}
               onChange={(e) => setBloque(e.target.value)}
             >
-              {LOTS[lote].bloques.map((b) => (
+              {(currentLot?.bloques ?? ["General"]).map((b) => (
                 <option key={b}>{b}</option>
               ))}
             </Select>
@@ -770,15 +773,15 @@ export function HarvestForm({ editId }: { editId?: string }) {
               </tr>
             </thead>
             <tbody>
-              {HARVEST_LOTS.map((code) => {
-                const rows = today.filter((s) => s.lote === code);
+              {activeLots.map((L) => {
+                const rows = today.filter((s) => s.lote === L.code);
                 const kg = rows.reduce((a, s) => a + s.totKg, 0);
                 const cost = rows.reduce((a, s) => a + s.totCost, 0);
                 return (
-                  <tr key={code}>
+                  <tr key={L.code}>
                     <Td>
-                      <span className="font-medium">{code}</span>
-                      <span className="ml-2 text-muted">{LOTS[code].nombre}</span>
+                      <span className="font-medium">{L.code}</span>
+                      <span className="ml-2 text-muted">{L.nombre}</span>
                     </Td>
                     <Td className="text-right tabular">{rows.length}</Td>
                     <Td className="text-right tabular">{fmtNum(kg, 1)}</Td>

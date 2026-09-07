@@ -9,7 +9,7 @@ import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Field, Textarea } from "@/components/ui/input";
 import { DecimalInput } from "@/components/ui/fields";
 import { fmtDate, fmtKg, fmtNum, fmtPct, fmtRatio, n } from "@/lib/format";
-import { LOTS } from "@/lib/lots";
+import { lotNombre } from "@/lib/lots";
 import {
   PROCESS_STAGES,
   nextPendingStage,
@@ -32,7 +32,8 @@ export const Route = createFileRoute("/beneficio")({
 
 function Page() {
   const { batch: batchQ } = Route.useSearch();
-  const batches = useFarm((s) => s.batches);
+  const farm = useFarm();
+  const batches = farm.batches;
   const settings = useFarm((s) => s.settings);
   const completeStage = useFarm((s) => s.completeStage);
   const undoStage = useFarm((s) => s.undoStage);
@@ -138,7 +139,7 @@ function Page() {
                       <span>
                         <span className="block font-medium text-fg">{b.code}</span>
                         <span className="text-xs">
-                          {LOTS[b.lote]?.nombre} · {fmtKg(b.kgActual)}
+                          {lotNombre(farm.lots, b.lote)} · {fmtKg(b.kgActual)}
                         </span>
                       </span>
                       <Badge tone={b.saleId ? "ok" : next ? "accent" : "ok"}>
@@ -240,6 +241,7 @@ function BatchBoard({
   onUndo: () => void;
 }) {
   const y = batchYield(batch);
+  const lots = useFarm((s) => s.lots);
   const { role } = useFarmAccess();
   const writable = canWrite(role);
   const done = batch.events.map((e) => e.stage);
@@ -262,7 +264,7 @@ function BatchBoard({
         <div>
           <CardTitle>{batch.code}</CardTitle>
           <CardHint>
-            {fmtDate(batch.fecha)} · {batch.lote} {LOTS[batch.lote]?.nombre} ·
+            {fmtDate(batch.fecha)} · {batch.lote} {lotNombre(lots, batch.lote)} ·
             entrada {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
           </CardHint>
         </div>

@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #080a09;
-  --color-surface: #101412;
-  --color-elevated: #171c19;
-  --color-fg: #f2f0ea;
-  --color-muted: #9ea49c;
-  --color-subtle: #6b726c;
-  --color-border: #2a322e;
-  --color-accent: #8fb9a3;
-  --color-accent-fg: #08110c;
-  --color-danger: #d07262;
-  --color-warn: #c9b07a;
-  --color-ok: #7fb089;
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --color-bg: #0c0d0c;
+  --color-surface: #141614;
+  --color-elevated: #1c1f1b;
+  --color-fg: #e8e6e1;
+  --color-muted: #a4a69f;
+  --color-subtle: #7a7d76;
+  --color-border: #2a2e29;
+  --color-accent: #7d9b8a;
+  --color-accent-fg: #0c0d0c;
+  --color-danger: #c47a6a;
+  --color-warn: #c4b08a;
+  --color-ok: #7d9b8a;
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --radius-sm: 0.5rem;
-  --radius-md: 0.875rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.75rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.15rem;
+  --radius-xl: 1.6rem;
 }
 
 @layer base {
@@ -33,7 +33,8 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     min-height: 100%;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.012em;
+    line-height: 1.5;
   }
   #app {
     min-height: 100dvh;
@@ -45,7 +46,8 @@
   h2,
   h3,
   .font-display {
-    letter-spacing: -0.03em;
+    letter-spacing: -0.028em;
+    line-height: 1.15;
   }
 }
 

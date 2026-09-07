@@ -7,7 +7,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-surface p-5 md:p-6",
+        "rounded-2xl border border-border bg-surface p-6 md:p-7",
         className,
       )}
       {...props}
@@ -22,7 +22,7 @@ export function CardTitle({
   return (
     <h3
       className={cn(
-        "font-display text-xl font-medium tracking-tight text-fg",
+        "font-display text-[1.65rem] font-medium tracking-tight text-fg",
         className,
       )}
       {...props}
@@ -35,6 +35,6 @@ export function CardHint({
   ...props
 }: React.ComponentProps<"p">) {
   return (
-    <p className={cn("mt-1 text-sm leading-relaxed text-muted", className)} {...props} />
+    <p className={cn("mt-1.5 text-sm leading-relaxed text-muted", className)} {...props} />
   );
 }

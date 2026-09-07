@@ -1,6 +1,6 @@
 import type { ProcessBatch, HarvestSession } from "./types";
 import { PROCESS_STAGES, type StageId } from "./process";
-import { HARVEST_LOTS, LOTS, type LotCode } from "./lots";
+import { harvestLots, rollupCode, DEFAULT_LOTS, type FarmLot, type LotCode } from "./lots";
 
 /** 1 carga FNC de pergamino seco. */
 export const CARGA_KG = 125;
@@ -402,6 +402,7 @@ export function farmYield(
   sessions: HarvestSession[],
   batches: ProcessBatch[],
   areaHa = AREA_FINCA_HA,
+  lots: FarmLot[] = DEFAULT_LOTS,
 ) {
   const kgCereza = sessions.reduce((a, s) => a + s.totKg, 0);
   const cpsEstTot = sessions.reduce(
@@ -421,11 +422,12 @@ export function farmYield(
       ? kgCerezaMedido / cpsReal
       : null;
   const rPct = yieldPctFromFactor(factorReal ?? factorPlanW);
-  const byLot: LotYield[] = HARVEST_LOTS.map((code) => {
-    const ss = sessions.filter((s) => s.lote === code);
+  const byLot: LotYield[] = harvestLots(lots).map((L) => {
+    const code = L.code;
+    const ss = sessions.filter((s) => rollupCode(lots, s.lote) === code);
     const kg = ss.reduce((a, s) => a + s.totKg, 0);
     const est = ss.reduce((a, s) => a + cpsEst(s.totKg, s.factor || FACTOR_PLAN), 0);
-    const bb = batches.filter((b) => b.lote === code).map(batchYield);
+    const bb = batches.filter((b) => rollupCode(lots, b.lote) === code).map(batchYield);
     const realParts = bb.filter((x) => x.kgBodega != null) as (BatchYield & {
       kgBodega: number;
     })[];
@@ -435,7 +437,7 @@ export function farmYield(
     const kgMed = realParts.reduce((a, x) => a + x.kgCereza, 0);
     const fPlan = kg > 0 && est > 0 ? kg / est : FACTOR_PLAN;
     const fReal = real != null && kgMed > 0 ? kgMed / real : null;
-    const ha = LOTS[code].areaHa;
+    const ha = L.areaHa;
     const cpsUse = real ?? est;
     return {
       lote: code,

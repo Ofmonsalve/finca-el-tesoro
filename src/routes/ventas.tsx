@@ -7,7 +7,7 @@ import { Field, Input } from "@/components/ui/input";
 import { DecimalInput, MoneyInput, Select } from "@/components/ui/fields";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtDate, fmtKg, fmtMoney, fmtNum, n, todayISO } from "@/lib/format";
-import { LOT_CODES, type LotCode } from "@/lib/lots";
+import { harvestLots, type LotCode } from "@/lib/lots";
 import { PAY_METHODS, nextPendingStage, type PayMethodId } from "@/lib/process";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
@@ -162,9 +162,9 @@ function Page() {
               onChange={(e) => setLote(e.target.value as LotCode | "")}
             >
               <option value="">Sin asignar</option>
-              {LOT_CODES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {harvestLots(farm.lots).map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.code} {l.nombre}
                 </option>
               ))}
             </Select>

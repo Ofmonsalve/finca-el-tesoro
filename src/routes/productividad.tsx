@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtKg, fmtMoney, fmtNum, fmtPct, fmtRatio } from "@/lib/format";
-import { HARVEST_LOTS, LOTS } from "@/lib/lots";
+import { harvestLots, lotNombre } from "@/lib/lots";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import { FORMULAS, STAGE_RETAIN, classifyFactor } from "@/lib/yield";
@@ -16,9 +16,9 @@ function Page() {
   const farm = useFarm();
   const S = farmStats(farm);
   const Y = S.yieldBook;
-  const lotData = HARVEST_LOTS.map((c) => ({
-    lote: c.replace("FT-", ""),
-    kg: S.byLot[c]?.kg || 0,
+  const lotData = harvestLots(farm.lots).map((l) => ({
+    lote: l.code.replace("FT-", ""),
+    kg: S.byLot[l.code]?.kg || 0,
   }));
   const funnel = [
     { name: "Cereza", kg: Y.kgCereza, expected: Y.kgCereza },
@@ -308,7 +308,7 @@ function Page() {
               {Y.byLot.map((r) => (
                 <tr key={r.lote}>
                   <Td>
-                    {r.lote} {LOTS[r.lote].nombre}
+                    {r.lote} {lotNombre(farm.lots, r.lote)}
                   </Td>
                   <Td className="text-right tabular">{fmtNum(r.ha, 2)}</Td>
                   <Td className="text-right tabular">{fmtNum(r.kgCereza, 1)}</Td>
@@ -404,13 +404,13 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {HARVEST_LOTS.map((c) => {
-                const o = S.byLot[c];
-                const ha = LOTS[c].areaHa;
+              {harvestLots(farm.lots).map((L) => {
+                const o = S.byLot[L.code] ?? { kg: 0, cost: 0, hrs: 0, n: 0 };
+                const ha = L.areaHa;
                 return (
-                  <tr key={c}>
+                  <tr key={L.code}>
                     <Td>
-                      {c} {LOTS[c].nombre}
+                      {L.code} {L.nombre}
                     </Td>
                     <Td className="text-right tabular">{fmtNum(o.kg, 1)}</Td>
                     <Td className="text-right tabular">{fmtNum(o.hrs, 1)}</Td>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { hoursBetween, uid } from "./utils";
 import { n } from "./format";
-import { LOTS, type LotCode } from "./lots";
+import { DEFAULT_LOTS, nextLotCode, type FarmLot, type LotCode } from "./lots";
 import { PAY_METHODS, nextPendingStage, type StageId } from "./process";
 import type {
   CostLine,
@@ -29,8 +29,14 @@ export type FarmState = {
   sales: Sale[];
   costs: CostLine[];
   journals: JournalEntry[];
+  lots: FarmLot[];
   setHydrated: (v: boolean) => void;
   updateSettings: (p: Partial<Settings>) => void;
+  saveLot: (lot: FarmLot) => { ok: boolean; error?: string };
+  removeLot: (code: string) => { ok: boolean; error?: string };
+  setLotStatus: (code: string, status: FarmLot["status"]) => { ok: boolean; error?: string };
+  unifyLots: (codes: string[], nombre: string) => { ok: boolean; error?: string; code?: string };
+  dissolveUnion: (code: string) => { ok: boolean; error?: string };
   saveSession: (s: HarvestSession) => void;
   deleteSession: (id: string) => string | null;
   undoStage: (batchId: string) => void;
@@ -164,8 +170,114 @@ export const useFarm = create<FarmState>()(
       sales: [],
       costs: [],
       journals: [],
+      lots: DEFAULT_LOTS,
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
+      saveLot: (lot) => {
+        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const code = lot.code.trim().toUpperCase();
+        if (!code || !lot.nombre.trim()) {
+          return { ok: false, error: "Indique código y nombre." };
+        }
+        const row: FarmLot = {
+          ...lot,
+          id: lot.id || code,
+          code,
+          nombre: lot.nombre.trim(),
+          bloques: lot.bloques.map((b) => b.trim()).filter(Boolean),
+          areaHa: n(lot.areaHa),
+        };
+        if (!row.bloques.length) row.bloques = ["General"];
+        const i = lots.findIndex((l) => l.code === code || l.id === row.id);
+        set({
+          lots: i >= 0 ? lots.map((l, k) => (k === i ? { ...l, ...row } : l)) : [...lots, row],
+        });
+        return { ok: true };
+      },
+      removeLot: (code) => {
+        const used = get().sessions.some((s) => s.lote === code);
+        if (used) {
+          return { ok: false, error: "Tiene cosecha. Desactívelo, no lo borre." };
+        }
+        const lots = get().lots.filter((l) => l.code !== code);
+        if (lots.length === get().lots.length) {
+          return { ok: false, error: "No existe ese lote." };
+        }
+        set({ lots });
+        return { ok: true };
+      },
+      setLotStatus: (code, status) => {
+        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const L = lots.find((l) => l.code === code);
+        if (!L) return { ok: false, error: "No existe ese lote." };
+        if (L.status === "unificado" && status === "activo") {
+          return { ok: false, error: "Disuelva la unificación primero." };
+        }
+        set({
+          lots: lots.map((l) =>
+            l.code === code ? { ...l, status, unifiedInto: status === "activo" ? null : l.unifiedInto } : l,
+          ),
+        });
+        return { ok: true };
+      },
+      unifyLots: (codes, nombre) => {
+        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const pick = [...new Set(codes)].filter(Boolean);
+        if (pick.length < 2) return { ok: false, error: "Unifique al menos dos lotes activos." };
+        const src = pick.map((c) => lots.find((l) => l.code === c)).filter(Boolean) as FarmLot[];
+        if (src.length !== pick.length) return { ok: false, error: "Hay un código que no existe." };
+        if (src.some((l) => l.status !== "activo")) {
+          return { ok: false, error: "Solo se unifican lotes activos." };
+        }
+        const name = nombre.trim();
+        if (!name) return { ok: false, error: "Indique el nombre de la unidad." };
+        const code = nextLotCode(lots, name);
+        const maxP = Math.max(...lots.map((l) => l.harvestPriority), 0);
+        const nuevo: FarmLot = {
+          id: code,
+          code,
+          nombre: name,
+          rol: "Unidad unificada",
+          accion: "Operar como un solo lote",
+          estado: `Une ${src.map((l) => l.code).join(", ")}`,
+          areaHa: src.reduce((a, l) => a + l.areaHa, 0),
+          bloques: src.flatMap((l) => l.bloques.map((b) => `${l.code}-${b}`)),
+          harvestPriority: maxP + 1,
+          status: "activo",
+          unifiedInto: null,
+          variedad: src.map((l) => l.variedad).filter(Boolean)[0] || "Caturra / Castillo",
+        };
+        set({
+          lots: [
+            ...lots.map((l) =>
+              pick.includes(l.code)
+                ? { ...l, status: "unificado" as const, unifiedInto: code }
+                : l,
+            ),
+            nuevo,
+          ],
+        });
+        return { ok: true, code };
+      },
+      dissolveUnion: (code) => {
+        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const parent = lots.find((l) => l.code === code);
+        if (!parent) return { ok: false, error: "No existe esa unidad." };
+        const children = lots.filter((l) => l.unifiedInto === code);
+        if (!children.length) return { ok: false, error: "No tiene lotes unidos." };
+        set({
+          lots: lots.map((l) => {
+            if (l.unifiedInto === code) {
+              return { ...l, status: "activo" as const, unifiedInto: null };
+            }
+            if (l.code === code) {
+              return { ...l, status: "inactivo" as const };
+            }
+            return l;
+          }),
+        });
+        return { ok: true };
+      },
       saveSession: (s) => {
         const prev = get().sessions;
         const i = prev.findIndex((x) => x.id === s.id);
@@ -315,6 +427,7 @@ export const useFarm = create<FarmState>()(
         sales: get().sales,
         costs: get().costs,
         journals: get().journals,
+        lots: get().lots,
       }),
       importBook: (data) => {
         if (!data || typeof data !== "object") {
@@ -332,6 +445,7 @@ export const useFarm = create<FarmState>()(
           sales: p.sales ?? [],
           costs: p.costs ?? [],
           journals: p.journals ?? [],
+          lots: Array.isArray(p.lots) && p.lots.length ? p.lots : get().lots,
         });
         return { ok: true };
       },
@@ -376,6 +490,7 @@ export const useFarm = create<FarmState>()(
             metodo: s.metodo ?? "efectivo",
             batchId: s.batchId ?? "",
           })),
+          lots: Array.isArray(p.lots) && p.lots.length ? p.lots : current.lots,
         };
       },
       partialize: (s) => ({
@@ -386,6 +501,7 @@ export const useFarm = create<FarmState>()(
         sales: s.sales,
         costs: s.costs,
         journals: s.journals,
+        lots: s.lots,
       }),
     },
   ),
@@ -447,7 +563,7 @@ export function buildSession(input: {
     code,
     fecha: input.fecha,
     lote: input.lote,
-    bloque: input.bloque || LOTS[input.lote].bloques[0],
+    bloque: input.bloque || "General",
     tipo: input.tipo,
     pasada: input.pasada,
     modelo: input.modelo,

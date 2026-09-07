@@ -5,7 +5,7 @@ export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return (
     <input
       className={cn(
-        "flex h-11 w-full rounded-lg border border-border bg-elevated px-3 text-sm text-fg placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+        "flex h-11 w-full rounded-lg border border-border bg-elevated px-4 text-sm text-fg placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
         props.type === "number" || props.inputMode === "decimal"
           ? "tabular font-mono"
           : "",

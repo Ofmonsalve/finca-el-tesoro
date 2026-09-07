@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
 import { fmtKg, fmtMoney, fmtNum, fmtPct, todayISO } from "@/lib/format";
-import { HARVEST_LOTS, LOTS } from "@/lib/lots";
+import { areaActiva, harvestLots } from "@/lib/lots";
 import { farmStats, sessionsOn } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 
@@ -16,9 +16,11 @@ function Home() {
   const farm = useFarm();
   const S = farmStats(farm);
   const today = sessionsOn(farm.sessions, todayISO());
-  const lotBars = HARVEST_LOTS.map((c) => ({
-    lote: c.replace("FT-", ""),
-    kg: S.byLot[c]?.kg || 0,
+  const active = harvestLots(farm.lots);
+  const ha = areaActiva(farm.lots);
+  const lotBars = active.map((l) => ({
+    lote: l.code.replace("FT-", ""),
+    kg: S.byLot[l.code]?.kg || 0,
   }));
 
   return (
@@ -32,7 +34,7 @@ function Home() {
             Finca El Tesoro
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Santander · 1.900 m s.n.m. · 0,87 ha arábica. Un solo libro:
+            Santander · 1.900 m s.n.m. · {fmtNum(ha, 2)} ha arábica. Un solo libro:
             cosecha → beneficio → venta → asiento.
           </p>
         </div>
@@ -125,16 +127,16 @@ function Home() {
               : "Aún no hay registro de hoy. Empiece por Cosecha."}
           </CardHint>
           <ul className="mt-4 space-y-2">
-            {HARVEST_LOTS.map((c) => {
-              const n = today.filter((s) => s.lote === c).length;
+            {active.map((L) => {
+              const n = today.filter((s) => s.lote === L.code).length;
               return (
                 <li
-                  key={c}
-                  className="flex items-center justify-between text-sm"
+                  key={L.code}
+                  className="flex items-center justify-between gap-3 py-1 text-sm"
                 >
                   <span>
-                    <span className="font-medium">{c}</span>
-                    <span className="ml-2 text-muted">{LOTS[c].nombre}</span>
+                    <span className="font-medium">{L.code}</span>
+                    <span className="ml-2 text-muted">{L.nombre}</span>
                   </span>
                   {n ? (
                     <Badge tone="ok">Listo</Badge>
@@ -163,13 +165,12 @@ function Home() {
               </tr>
             </thead>
             <tbody>
-              {HARVEST_LOTS.map((c) => {
-                const o = S.byLot[c];
-                const L = LOTS[c];
+              {active.map((L) => {
+                const o = S.byLot[L.code];
                 return (
-                  <tr key={c}>
+                  <tr key={L.code}>
                     <Td>
-                      <b>{c}</b> {L.nombre}
+                      <b>{L.code}</b> {L.nombre}
                     </Td>
                     <Td className="text-muted">{L.rol}</Td>
                     <Td className="text-right tabular">{fmtNum(L.areaHa, 2)}</Td>
