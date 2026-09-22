@@ -1,9 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  BookOpen,
   ChevronsUpDown,
   Home,
-  Landmark,
+  BarChart3,
+  Leaf,
   LayoutDashboard,
   Menu,
   Tractor,
@@ -29,27 +29,26 @@ import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
 /**
- * Holding → Finca → Lote (Omar: do NOT label holding as “Casa”).
- * Holding home brand: Hoy / AURA.
- * Holding: Hoy · Fincas · Dinero · Gente · Desempeño
- * Finca: Estado · Lotes · Dinero · Gente · Desempeño
- * No Panel / Libro / Productividad / Liquidación-as-top / Más / Beneficio top-nav.
- * Final name lock still pending — avoid shipping “Casa”.
+ * Professional nav (pending Omar confirm — ship this, never Casa/Dueño):
+ * Holding: AURA · Fincas · Cosecha · Equipo · Analítica
+ * Finca: Resumen · Lotes · Cosecha · Equipo · Analítica
+ * Lote: Cosecha · Labores · Nutrición · Cultivo
+ * No Casa / Dueño / Resultados / Desempeño / Números / Gente / Más / Panel.
  */
-const HOY_NAV = [
-  { to: "/", label: "Hoy", icon: Home },
+const AURA_NAV = [
+  { to: "/", label: "AURA", icon: Home },
   { to: "/", label: "Fincas", icon: LayoutDashboard, hash: "fincas" },
-  { to: "/finanzas", label: "Dinero", icon: Landmark },
-  { to: "/liquidacion", label: "Gente", icon: Users },
-  { to: "/historial", label: "Desempeño", icon: BookOpen },
+  { to: "/cosecha", label: "Cosecha", icon: Leaf },
+  { to: "/equipo", label: "Equipo", icon: Users },
+  { to: "/finanzas", label: "Analítica", icon: BarChart3 },
 ] as const;
 
 const FINCA_NAV = [
-  { to: "/estado", label: "Estado", icon: LayoutDashboard },
+  { to: "/estado", label: "Resumen", icon: Home },
   { to: "/lotes", label: "Lotes", icon: Tractor },
-  { to: "/finanzas", label: "Dinero", icon: Landmark },
-  { to: "/liquidacion", label: "Gente", icon: Users },
-  { to: "/historial", label: "Desempeño", icon: BookOpen },
+  { to: "/cosecha", label: "Cosecha", icon: Leaf },
+  { to: "/equipo", label: "Equipo", icon: Users },
+  { to: "/finanzas", label: "Analítica", icon: BarChart3 },
 ] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -179,7 +178,7 @@ function ShellApp({
 
   const atHoy = pathname === "/";
   const levelLabel = atHoy ? "AURA" : "Finca";
-  const navItems = atHoy ? HOY_NAV : FINCA_NAV;
+  const navItems = atHoy ? AURA_NAV : FINCA_NAV;
 
   function NavList(
     items: readonly {
@@ -191,10 +190,10 @@ function ShellApp({
   ) {
     return items.map((item) => {
       const hash = "hash" in item ? item.hash : undefined;
-      // Hoy = holding home; Fincas = same path, scroll target (not forced active).
+      // Holding AURA="/"; Finca Resumen="/estado"; Fincas = scroll target on "/".
       const isActive =
-        item.label === "Hoy"
-          ? pathname === "/"
+        item.label === "AURA" || item.label === "Resumen"
+          ? pathname === item.to
           : item.label === "Fincas"
             ? false
             : pathname === item.to || pathname.startsWith(`${item.to}/`);
@@ -225,7 +224,7 @@ function ShellApp({
         <div>
           <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            AURA · Hoy
+            AURA · Fincas
           </div>
         </div>
         <Button
@@ -260,13 +259,13 @@ function ShellApp({
                 className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-accent hover:bg-elevated/60"
               >
                 <Home className="size-4 shrink-0" />
-                Volver a Hoy
+                Volver a AURA
               </Link>
             ) : null}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Hoy → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
+              AURA → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />

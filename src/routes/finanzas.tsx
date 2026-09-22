@@ -33,11 +33,12 @@ function Page() {
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-          Dirección
+          Analítica
         </p>
-        <h1 className="font-display text-4xl tracking-tight">Finanzas</h1>
+        <h1 className="font-display text-4xl tracking-tight">Analítica</h1>
         <p className="mt-2 text-sm text-muted">
-          Margen, punto de equilibrio y sensibilidad. Todo se recalcula desde
+          Primero el dinero que entra y sale; luego margen, equilibrio y
+          sensibilidad. Todo se recalcula desde
           cosecha, gastos y ventas — sin hojas paralelas.
         </p>
       </header>

@@ -22,8 +22,8 @@ function Page() {
           {ses ? "Editar sesión" : "Registro de cosecha"}
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Nombre y kilogramos primero. Horas y pago se calculan solos. Al
-          guardar, el lote entra a beneficio.
+          Grano: kilogramos de cereza primero (etiquetados). Horas y pago se
+          calculan solos. Al guardar, el lote entra a beneficio / pergamino.
         </p>
       </header>
       <WriteGate>
