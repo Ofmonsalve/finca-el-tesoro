@@ -51,7 +51,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
   const [editCode, setEditCode] = useState<string | undefined>();
 
   const [fecha, setFecha] = useState(todayISO());
-  const [lote, setLote] = useState<LotCode>(harvestLots(undefined)[0]?.code ?? "FT-CEN");
+  const [lote, setLote] = useState<LotCode>("");
   const [bloque, setBloque] = useState("General");
   const [tipo, setTipo] = useState<HarvestType>("Principal");
   const [pasada, setPasada] = useState(1);
@@ -151,6 +151,15 @@ export function HarvestForm({ editId }: { editId?: string }) {
     setMsg(null);
     if (!fecha) {
       setMsg({ ok: false, text: "Indique la fecha." });
+      return;
+    }
+    if (!lote || !activeLots.some((l) => l.code === lote)) {
+      setMsg({
+        ok: false,
+        text: activeLots.length
+          ? "Seleccione un lote activo."
+          : "No hay lotes. Cree uno o cargue la demo en Lotes.",
+      });
       return;
     }
     if (!live.rows.length) {
@@ -321,6 +330,11 @@ export function HarvestForm({ editId }: { editId?: string }) {
           <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-subtle">
             Lote
           </div>
+          {!activeLots.length ? (
+            <p className="mb-2 text-sm text-muted">
+              Catálogo vacío — vaya a Lotes para crear o cargar la demo El Tesoro.
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {activeLots.map((L) => (
               <button

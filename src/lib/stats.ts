@@ -1,4 +1,4 @@
-import { areaActiva, harvestLots, rollupCode, DEFAULT_LOTS, type LotCode, type FarmLot } from "./lots";
+import { areaActiva, harvestLots, rollupCode, type LotCode, type FarmLot } from "./lots";
 import type { FarmState } from "./store";
 import {
   aggregateWorkerEarnings,
@@ -7,7 +7,6 @@ import {
 } from "./payroll";
 import type { CostLine, ProcessBatch, Sale } from "./types";
 import {
-  AREA_FINCA_HA,
   ARROBA_KG,
   CARGA_KG,
   cargaCost,
@@ -20,9 +19,9 @@ export function farmStats(s: FarmState) {
   const sales = s.sales ?? [];
   const liquidations = s.liquidations ?? [];
   const costs = s.costs ?? [];
-  const lots: FarmLot[] = s.lots?.length ? s.lots : DEFAULT_LOTS;
+  const lots: FarmLot[] = Array.isArray(s.lots) ? s.lots : [];
   const active = harvestLots(lots);
-  const ha = areaActiva(lots) || 0.87;
+  const ha = areaActiva(lots);
   const codes = [
     ...new Set([
       ...active.map((l) => l.code),
@@ -179,7 +178,7 @@ export function sessionsOn(sessions: FarmState["sessions"], fecha: string) {
 }
 
 export function lotLabel(code: LotCode | string, lots?: FarmLot[]) {
-  const L = (lots?.length ? lots : DEFAULT_LOTS).find((l) => l.code === code);
+  const L = (Array.isArray(lots) ? lots : []).find((l) => l.code === code);
   return L ? `${L.code} ${L.nombre}` : code;
 }
 
@@ -291,7 +290,7 @@ function buildCostSheet(input: {
       .reduce((x, s) => x + s.totKg, 0);
     return a + kg;
   }, 0);
-  const haFarm = input.ha || AREA_FINCA_HA;
+  const haFarm = (input.ha != null && input.ha > 0 ? input.ha : areaActiva(input.lots)) || 0;
   const byLot: LotCostRow[] = harvestLots(input.lots).map((L) => {
     const code = L.code;
     const ss = input.sessions.filter((s) => rollupCode(input.lots, s.lote) === code);

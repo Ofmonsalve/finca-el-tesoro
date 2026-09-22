@@ -1,6 +1,6 @@
 import type { ProcessBatch, HarvestSession } from "./types";
 import { PROCESS_STAGES, type StageId } from "./process";
-import { harvestLots, rollupCode, DEFAULT_LOTS, type FarmLot, type LotCode } from "./lots";
+import { harvestLots, rollupCode, type FarmLot, type LotCode } from "./lots";
 
 /** 1 carga FNC de pergamino seco. */
 export const CARGA_KG = 125;
@@ -402,7 +402,7 @@ export function farmYield(
   sessions: HarvestSession[],
   batches: ProcessBatch[],
   areaHa = AREA_FINCA_HA,
-  lots: FarmLot[] = DEFAULT_LOTS,
+  lots: FarmLot[] = [],
 ) {
   const kgCereza = sessions.reduce((a, s) => a + s.totKg, 0);
   const cpsEstTot = sessions.reduce(

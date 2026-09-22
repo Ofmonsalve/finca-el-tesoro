@@ -1,8 +1,18 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { uid } from "./utils";
 import { n } from "./format";
-import { DEFAULT_LOTS, nextLotCode, type FarmLot, type LotCode } from "./lots";
+import { nextLotCode, type FarmLot, type LotCode } from "./lots";
+import {
+  createEmptyFarmBook,
+  createFarmPersistStorage,
+  cloneDemoLots,
+  lotsFromImport,
+  mergeLotsFromPersist,
+  shouldOfferDemoLots,
+  storageKeyForFarm,
+} from "./farm-book-init";
+import { FARM_ID } from "./roles";
 import { PAY_METHODS, nextPendingStage, type StageId } from "./process";
 import type {
   CostLine,
@@ -34,10 +44,14 @@ export {
   workerKey,
 } from "./payroll";
 
-const SK = "ft-tesoro-v1";
+/** Active farm storage key (scoped by farmId). Legacy ft-tesoro-v1 migrates on read. */
+const SK = storageKeyForFarm(FARM_ID);
+const emptyBook = createEmptyFarmBook(FARM_ID);
 
 export type FarmState = {
   hydrated: boolean;
+  /** Active farm identity (single farm for now; storage is keyed by this). */
+  farmId: string;
   settings: Settings;
   sessions: HarvestSession[];
   batches: ProcessBatch[];
@@ -75,6 +89,8 @@ export type FarmState = {
   importBook: (data: unknown) => { ok: boolean; error?: string };
   exportBook: () => Record<string, unknown>;
   wipeHarvest: () => void;
+  /** Explicit opt-in: load El Tesoro demo lots (only if catalog empty, unless force). */
+  loadDemoLots: (opts?: { force?: boolean }) => { ok: boolean; error?: string };
 };
 
 const defaultSettings: Settings = {
@@ -181,18 +197,19 @@ export const useFarm = create<FarmState>()(
   persist(
     (set, get) => ({
       hydrated: false,
-      settings: defaultSettings,
+      farmId: emptyBook.farmId,
+      settings: { ...emptyBook.settings },
       sessions: [],
       batches: [],
       liquidations: [],
       sales: [],
       costs: [],
       journals: [],
-      lots: DEFAULT_LOTS,
+      lots: [],
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       saveLot: (lot) => {
-        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const lots = get().lots;
         const code = lot.code.trim().toUpperCase();
         if (!code || !lot.nombre.trim()) {
           return { ok: false, error: "Indique código y nombre." };
@@ -225,7 +242,7 @@ export const useFarm = create<FarmState>()(
         return { ok: true };
       },
       setLotStatus: (code, status) => {
-        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const lots = get().lots;
         const L = lots.find((l) => l.code === code);
         if (!L) return { ok: false, error: "No existe ese lote." };
         if (L.status === "unificado" && status === "activo") {
@@ -239,7 +256,7 @@ export const useFarm = create<FarmState>()(
         return { ok: true };
       },
       unifyLots: (codes, nombre) => {
-        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const lots = get().lots;
         const pick = [...new Set(codes)].filter(Boolean);
         if (pick.length < 2) return { ok: false, error: "Unifique al menos dos lotes activos." };
         const src = pick.map((c) => lots.find((l) => l.code === c)).filter(Boolean) as FarmLot[];
@@ -278,7 +295,7 @@ export const useFarm = create<FarmState>()(
         return { ok: true, code };
       },
       dissolveUnion: (code) => {
-        const lots = get().lots.length ? get().lots : DEFAULT_LOTS;
+        const lots = get().lots;
         const parent = lots.find((l) => l.code === code);
         if (!parent) return { ok: false, error: "No existe esa unidad." };
         const children = lots.filter((l) => l.unifiedInto === code);
@@ -468,6 +485,7 @@ export const useFarm = create<FarmState>()(
       saveJournal: (j) => set({ journals: [j, ...get().journals] }),
       exportBook: () => ({
         v: 1,
+        farmId: get().farmId,
         exportedAt: new Date().toISOString(),
         settings: get().settings,
         sessions: get().sessions,
@@ -482,11 +500,15 @@ export const useFarm = create<FarmState>()(
         if (!data || typeof data !== "object") {
           return { ok: false, error: "Archivo inválido." };
         }
-        const p = data as Partial<FarmState> & { v?: number };
+        const p = data as Partial<FarmState> & { v?: number; farmId?: string };
         if (!Array.isArray(p.sessions)) {
           return { ok: false, error: "El archivo no tiene sesiones de cosecha." };
         }
         set({
+          farmId:
+            typeof p.farmId === "string" && p.farmId.trim()
+              ? p.farmId.trim()
+              : get().farmId,
           settings: { ...defaultSettings, ...p.settings },
           sessions: p.sessions ?? [],
           batches: p.batches ?? [],
@@ -494,7 +516,7 @@ export const useFarm = create<FarmState>()(
           sales: p.sales ?? [],
           costs: p.costs ?? [],
           journals: p.journals ?? [],
-          lots: Array.isArray(p.lots) && p.lots.length ? p.lots : get().lots,
+          lots: lotsFromImport(p.lots, get().lots),
         });
         return { ok: true };
       },
@@ -504,12 +526,24 @@ export const useFarm = create<FarmState>()(
           batches: [],
           journals: get().journals.filter((j) => j.origen !== "cosecha"),
         }),
+      loadDemoLots: (opts) => {
+        const force = Boolean(opts?.force);
+        if (!force && !shouldOfferDemoLots(get().lots)) {
+          return {
+            ok: false,
+            error: "Ya hay lotes. Vacíe el catálogo o use force para reemplazar.",
+          };
+        }
+        set({ lots: cloneDemoLots() });
+        return { ok: true };
+      },
     }),
     {
       name: SK,
       skipHydration: true,
+      storage: createJSONStorage(() => createFarmPersistStorage(FARM_ID)),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<FarmState>;
+        const p = (persisted ?? {}) as Partial<FarmState> & { farmId?: string };
         const sessions = p.sessions ?? current.sessions ?? [];
         let batches = p.batches ?? [];
         if (!batches.length && sessions.length) {
@@ -528,6 +562,10 @@ export const useFarm = create<FarmState>()(
         }
         return {
           ...current,
+          farmId:
+            typeof p.farmId === "string" && p.farmId.trim()
+              ? p.farmId.trim()
+              : current.farmId || FARM_ID,
           settings: { ...defaultSettings, ...p.settings },
           sessions,
           batches,
@@ -539,10 +577,11 @@ export const useFarm = create<FarmState>()(
             metodo: s.metodo ?? "efectivo",
             batchId: s.batchId ?? "",
           })),
-          lots: Array.isArray(p.lots) && p.lots.length ? p.lots : current.lots,
+          lots: mergeLotsFromPersist(p.lots, current.lots),
         };
       },
       partialize: (s) => ({
+        farmId: s.farmId,
         settings: s.settings,
         sessions: s.sessions,
         batches: s.batches,

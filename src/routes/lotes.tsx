@@ -52,6 +52,7 @@ function Page() {
   const setLotStatus = useFarm((s) => s.setLotStatus);
   const unifyLots = useFarm((s) => s.unifyLots);
   const dissolveUnion = useFarm((s) => s.dissolveUnion);
+  const loadDemoLots = useFarm((s) => s.loadDemoLots);
 
   const [draft, setDraft] = useState<FarmLot>(empty());
   const [editing, setEditing] = useState(false);
@@ -153,6 +154,38 @@ function Page() {
       </Card>
 
       {note ? <p className="text-sm text-accent">{note}</p> : null}
+
+      {!lots.length && !editing ? (
+        <Card>
+          <CardTitle>Sin lotes aún</CardTitle>
+          <CardHint>
+            El libro arranca vacío. Cree lotes propios o cargue la plantilla demo
+            de Finca El Tesoro (solo bajo demanda — no se hereda al crear una
+            finca nueva).
+          </CardHint>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <WriteGate fallback={null}>
+              <Button onClick={startNew}>Crear primer lote</Button>
+            </WriteGate>
+            <WriteGate fallback={null}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const r = loadDemoLots();
+                  flash(
+                    r.ok,
+                    r.ok
+                      ? "Plantilla demo El Tesoro cargada."
+                      : r.error ?? "No se cargó la demo.",
+                  );
+                }}
+              >
+                Cargar demo El Tesoro
+              </Button>
+            </WriteGate>
+          </div>
+        </Card>
+      ) : null}
 
       {editing ? (
         <Card>

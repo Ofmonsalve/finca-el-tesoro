@@ -42,7 +42,11 @@ function def(
   };
 }
 
-export const DEFAULT_LOTS: FarmLot[] = [
+/**
+ * Plantilla demo Finca El Tesoro — NO se siembra sola.
+ * Usar solo vía `cloneDemoLots` / `loadDemoLots` (CTA explícito).
+ */
+export const DEMO_LOTS: FarmLot[] = [
   def("FT-CEN", "Centro", "Núcleo productivo", "Maximizar cosecha", "Soca ~3 años, en producción", 0.28, ["Centro-A", "Centro-B", "Centro-C"], 1),
   def("FT-LRS", "Línea Roja Superior", "Caja 2", "Producir, no intervenir ciclo", "Soca a mitad ~2 años", 0.12, ["LRS-1", "LRS-2"], 2),
   def("FT-TRI", "Triangular", "Decisión", "Medir kg/h y decidir", "Pendiente soqueo vs renovación", 0.12, ["TRI-base", "TRI-punta"], 3),
@@ -51,27 +55,43 @@ export const DEFAULT_LOTS: FarmLot[] = [
   def("FT-SUP", "Superior", "Renovación 2", "Cosechar y planificar renovación", "Café viejo, menor área", 0.07, ["SUP-1"], 6),
 ];
 
+/** @deprecated Prefer DEMO_LOTS — kept as alias for older imports / tests. */
+export const DEFAULT_LOTS = DEMO_LOTS;
+
+function asList(lots: FarmLot[] | undefined | null): FarmLot[] {
+  return Array.isArray(lots) ? lots : [];
+}
+
+/** Active lots for harvest UI. Empty catalog → [] (no demo inheritance). */
 export function harvestLots(lots: FarmLot[] | undefined | null): FarmLot[] {
-  return (lots?.length ? lots : DEFAULT_LOTS)
+  return asList(lots)
     .filter((l) => l.status === "activo")
     .slice()
     .sort((a, b) => a.harvestPriority - b.harvestPriority);
 }
 
 export function allLots(lots: FarmLot[] | undefined | null): FarmLot[] {
-  return (lots?.length ? lots : DEFAULT_LOTS).slice().sort((a, b) => a.harvestPriority - b.harvestPriority);
+  return asList(lots)
+    .slice()
+    .sort((a, b) => a.harvestPriority - b.harvestPriority);
 }
 
-export function lotByCode(lots: FarmLot[] | undefined | null, code: string): FarmLot | undefined {
-  return (lots?.length ? lots : DEFAULT_LOTS).find((l) => l.code === code);
+export function lotByCode(
+  lots: FarmLot[] | undefined | null,
+  code: string,
+): FarmLot | undefined {
+  return asList(lots).find((l) => l.code === code);
 }
 
 export function areaActiva(lots: FarmLot[] | undefined | null): number {
   return harvestLots(lots).reduce((a, l) => a + (l.areaHa || 0), 0);
 }
 
-export function rollupCode(lots: FarmLot[] | undefined | null, code: string): string {
-  const list = lots?.length ? lots : DEFAULT_LOTS;
+export function rollupCode(
+  lots: FarmLot[] | undefined | null,
+  code: string,
+): string {
+  const list = asList(lots);
   let cur = code;
   for (let i = 0; i < 8; i += 1) {
     const L = list.find((l) => l.code === cur);
@@ -81,17 +101,21 @@ export function rollupCode(lots: FarmLot[] | undefined | null, code: string): st
   return cur;
 }
 
-export function lotNombre(lots: FarmLot[] | undefined | null, code: string): string {
+export function lotNombre(
+  lots: FarmLot[] | undefined | null,
+  code: string,
+): string {
   return lotByCode(lots, code)?.nombre ?? code;
 }
 
 export function nextLotCode(lots: FarmLot[], nombre: string): string {
-  const slug = nombre
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-Za-z0-9]/g, "")
-    .slice(0, 3)
-    .toUpperCase() || "LOT";
+  const slug =
+    nombre
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .slice(0, 3)
+      .toUpperCase() || "LOT";
   const used = new Set(lots.map((l) => l.code));
   let code = `FT-${slug}`;
   let n = 2;
@@ -102,9 +126,9 @@ export function nextLotCode(lots: FarmLot[], nombre: string): string {
   return code;
 }
 
-/** Compat: mapa de defaults. Preferir lotByCode(farm.lots, code). */
+/** Compat: mapa de la plantilla demo. Preferir lotByCode(farm.lots, code). */
 export const LOTS: Record<string, FarmLot> = Object.fromEntries(
-  DEFAULT_LOTS.map((l) => [l.code, l]),
+  DEMO_LOTS.map((l) => [l.code, l]),
 );
-export const HARVEST_LOTS = DEFAULT_LOTS.map((l) => l.code);
+export const HARVEST_LOTS = DEMO_LOTS.map((l) => l.code);
 export const LOT_CODES = HARVEST_LOTS;
