@@ -229,3 +229,32 @@ export type LotCultivo = {
   sombraTipo?: string;
   updatedAt: string;
 };
+
+/**
+ * Work role on the finca (Talento / gente). Not auth/app permissions.
+ * Locked catalog: recolector | mayordomo | jornalero | beneficio | otro.
+ */
+export type PersonRole =
+  | "recolector"
+  | "mayordomo"
+  | "jornalero"
+  | "beneficio"
+  | "otro";
+
+/**
+ * Person in the farm registry (Talento · gente de finca).
+ * Always tagged farmId — holding lists by farm; inside a farm only that farm.
+ * Name links to harvest pay via workerKey. Does NOT carry app permissions,
+ * predio/títulos, contracts, or harvest kg. Optional phone is edit-only
+ * (not a list column). Feeds Pulso/Inteligencia gente only when farm-tagged.
+ */
+export type FarmPerson = {
+  id: string;
+  farmId: string;
+  nombre: string;
+  rol: PersonRole;
+  /** Optional contact — edit form only; not shown as a list column. */
+  telefono?: string;
+  activo: boolean;
+  updatedAt: string;
+};

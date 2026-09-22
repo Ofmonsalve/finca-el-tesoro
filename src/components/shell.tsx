@@ -39,7 +39,7 @@ const AURA_NAV = [
   { to: "/", label: "Pulso", icon: Home },
   { to: "/", label: "Territorios", icon: LayoutDashboard, hash: "fincas" },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Talento", icon: Users },
+  { to: "/talento", label: "Talento", icon: Users },
   { to: "/finanzas", label: "Inteligencia", icon: BarChart3 },
 ] as const;
 
@@ -47,7 +47,7 @@ const FINCA_NAV = [
   { to: "/estado", label: "Pulso", icon: Home },
   { to: "/lotes", label: "Lotes", icon: Tractor },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Talento", icon: Users },
+  { to: "/talento", label: "Talento", icon: Users },
   { to: "/finanzas", label: "Inteligencia", icon: BarChart3 },
 ] as const;
 
