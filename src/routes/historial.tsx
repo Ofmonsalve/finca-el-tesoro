@@ -114,7 +114,7 @@ function Page() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link to="/cosecha" search={{ ses: s.id }}>
+                  <Link to="/cosecha" search={{ ses: s.id, lote: undefined, nuevo: undefined }}>
                     Editar
                   </Link>
                 </Button>

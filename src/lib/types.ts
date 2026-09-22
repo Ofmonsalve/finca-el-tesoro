@@ -36,6 +36,8 @@ export type HarvestSession = {
   totHrs: number;
   totAlim: number;
   totCost: number;
+  /** Farm book tag — isolation + holding labels. Legacy rows may omit. */
+  farmId?: string;
 };
 
 export type ProcessEvent = {
@@ -62,6 +64,8 @@ export type ProcessBatch = {
   factor: number;
   events: ProcessEvent[];
   saleId: string | null;
+  /** Farm book tag — beneficio batches listed under that finca. Legacy may omit. */
+  farmId?: string;
 };
 
 export type Liquidation = {

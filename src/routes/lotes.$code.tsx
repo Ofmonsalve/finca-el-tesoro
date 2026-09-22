@@ -240,14 +240,17 @@ function CosechaFace({
           <div>
             <CardTitle>Registrar cosecha</CardTitle>
             <CardHint>
-              Abre el formulario con este lote ya elegido. El beneficio sigue
-              disponible desde la sesión guardada.
+              Abre el formulario con este lote ya elegido (kg cereza). Luego
+              Grano / beneficio lleva el café a pergamino.
             </CardHint>
           </div>
           {canHarvest ? (
             <Button asChild>
-              <Link to="/cosecha" search={{ lote: code, ses: undefined }}>
-                Registrar cosecha
+              <Link
+                to="/cosecha"
+                search={{ lote: code, ses: undefined, nuevo: undefined }}
+              >
+                Registrar cereza
                 <ChevronRight className="size-4" />
               </Link>
             </Button>
@@ -259,7 +262,9 @@ function CosechaFace({
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link to="/beneficio">Ir a beneficio</Link>
+            <Link to="/beneficio" search={{ batch: undefined }}>
+              Grano / beneficio
+            </Link>
           </Button>
           <Button asChild variant="ghost" size="sm">
             <Link to="/historial">Ver historial completo</Link>
@@ -302,7 +307,7 @@ function CosechaFace({
                     <Td className="text-right">
                       <Link
                         to="/cosecha"
-                        search={{ ses: s.id, lote: undefined }}
+                        search={{ ses: s.id, lote: undefined, nuevo: undefined }}
                         className="text-sm text-accent hover:underline"
                       >
                         Editar

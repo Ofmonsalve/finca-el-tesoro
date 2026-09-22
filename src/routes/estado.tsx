@@ -75,13 +75,13 @@ function EstadoPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
-            <Link to="/cosecha" search={{ ses: undefined, lote: undefined }}>
+            <Link to="/cosecha" search={{ ses: undefined, lote: undefined, nuevo: undefined }}>
               Registrar cosecha
             </Link>
           </Button>
           <Button asChild variant="outline">
             <Link to="/beneficio" search={{ batch: undefined }}>
-              Beneficio / pergamino
+              Grano / beneficio
             </Link>
           </Button>
           <Button asChild variant="outline">

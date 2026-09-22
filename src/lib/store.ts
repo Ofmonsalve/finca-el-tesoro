@@ -43,6 +43,7 @@ import {
   sessionDay,
 } from "./payroll";
 import { resolveStageKgOut } from "./beneficio-weigh";
+import { withFarmTag } from "./cosecha-hub";
 
 export {
   aggregateWorkerEarnings,
@@ -194,7 +195,7 @@ function journalFromCost(c: CostLine): JournalEntry {
   };
 }
 
-function newBatchFromSession(s: HarvestSession): ProcessBatch {
+function newBatchFromSession(s: HarvestSession, farmId: string): ProcessBatch {
   const ev: ProcessEvent = {
     id: uid("ev"),
     stage: "tolva",
@@ -205,18 +206,22 @@ function newBatchFromSession(s: HarvestSession): ProcessBatch {
     notas: "Recepción al guardar la cosecha",
     responsable: s.responsable,
   };
-  return {
-    id: uid("lot"),
-    sessionId: s.id,
-    code: s.code,
-    fecha: s.fecha,
-    lote: s.lote,
-    kgCereza: s.totKg,
-    kgActual: s.totKg,
-    factor: s.factor,
-    events: [ev],
-    saleId: null,
-  };
+  return withFarmTag(
+    {
+      id: uid("lot"),
+      sessionId: s.id,
+      code: s.code,
+      fecha: s.fecha,
+      lote: s.lote,
+      kgCereza: s.totKg,
+      kgActual: s.totKg,
+      factor: s.factor,
+      events: [ev],
+      saleId: null,
+      farmId: s.farmId,
+    },
+    farmId || s.farmId || "",
+  );
 }
 
 export const useFarm = create<FarmState>()(
@@ -344,30 +349,38 @@ export const useFarm = create<FarmState>()(
         return { ok: true };
       },
       saveSession: (s) => {
+        const farmId = get().farmId;
+        const tagged = withFarmTag(s, farmId);
         const prev = get().sessions;
-        const i = prev.findIndex((x) => x.id === s.id);
-        const sessions = i >= 0 ? prev.map((x, k) => (k === i ? s : x)) : [s, ...prev];
+        const i = prev.findIndex((x) => x.id === tagged.id);
+        const sessions =
+          i >= 0
+            ? prev.map((x, k) => (k === i ? tagged : x))
+            : [tagged, ...prev];
         const journals = get()
-          .journals.filter((j) => !(j.origen === "cosecha" && j.origenId === s.id))
-          .concat(journalFromHarvest(s));
-        const bi = get().batches.findIndex((b) => b.sessionId === s.id);
+          .journals.filter((j) => !(j.origen === "cosecha" && j.origenId === tagged.id))
+          .concat(journalFromHarvest(tagged));
+        const bi = get().batches.findIndex((b) => b.sessionId === tagged.id);
         let batches = get().batches;
         if (bi >= 0) {
           batches = batches.map((b, k) => {
             if (k !== bi) return b;
             const weighed = b.events.length > 0;
-            return {
-              ...b,
-              kgCereza: s.totKg,
-              code: s.code,
-              fecha: s.fecha,
-              lote: s.lote,
-              factor: s.factor,
-              kgActual: weighed ? b.kgActual : s.totKg,
-            };
+            return withFarmTag(
+              {
+                ...b,
+                kgCereza: tagged.totKg,
+                code: tagged.code,
+                fecha: tagged.fecha,
+                lote: tagged.lote,
+                factor: tagged.factor,
+                kgActual: weighed ? b.kgActual : tagged.totKg,
+              },
+              farmId,
+            );
           });
         } else {
-          batches = [newBatchFromSession(s), ...batches];
+          batches = [newBatchFromSession(tagged, farmId), ...batches];
         }
         set({ sessions, journals, batches });
       },
@@ -683,26 +696,33 @@ export const useFarm = create<FarmState>()(
         const p = (persisted ?? {}) as Partial<FarmState> & { farmId?: string };
         const sessions = p.sessions ?? current.sessions ?? [];
         let batches = p.batches ?? [];
+        const resolvedFarmId =
+          typeof p.farmId === "string" && p.farmId.trim()
+            ? p.farmId.trim()
+            : current.farmId || FARM_ID;
         if (!batches.length && sessions.length) {
-          batches = sessions.map((s) => ({
-            id: `lot-${s.id}`,
-            sessionId: s.id,
-            code: s.code,
-            fecha: s.fecha,
-            lote: s.lote,
-            kgCereza: s.totKg,
-            kgActual: s.totKg,
-            factor: s.factor,
-            events: [],
-            saleId: null as string | null,
-          }));
+          batches = sessions.map((s) =>
+            withFarmTag(
+              {
+                id: `lot-${s.id}`,
+                sessionId: s.id,
+                code: s.code,
+                fecha: s.fecha,
+                lote: s.lote,
+                kgCereza: s.totKg,
+                kgActual: s.totKg,
+                factor: s.factor,
+                events: [],
+                saleId: null as string | null,
+                farmId: s.farmId,
+              },
+              resolvedFarmId,
+            ),
+          );
         }
         return {
           ...current,
-          farmId:
-            typeof p.farmId === "string" && p.farmId.trim()
-              ? p.farmId.trim()
-              : current.farmId || FARM_ID,
+          farmId: resolvedFarmId,
           settings: { ...defaultSettings, ...p.settings },
           sessions,
           batches,

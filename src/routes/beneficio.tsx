@@ -24,6 +24,7 @@ import {
   resolveStageKgOut,
   stageRequiresExplicitKg,
 } from "@/lib/beneficio-weigh";
+import { batchesForFarm } from "@/lib/cosecha-hub";
 import { useFarmAccess } from "@/components/farm-access";
 import { canWrite } from "@/lib/roles";
 
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/beneficio")({
 function Page() {
   const { batch: batchQ } = Route.useSearch();
   const farm = useFarm();
-  const batches = farm.batches;
+  const batches = batchesForFarm(farm.batches, farm.farmId);
   const settings = useFarm((s) => s.settings);
   const completeStage = useFarm((s) => s.completeStage);
   const undoStage = useFarm((s) => s.undoStage);
@@ -63,29 +64,60 @@ function Page() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-          Postcosecha
-        </p>
-        <h1 className="font-display text-4xl tracking-tight">
-          Trazabilidad del grano
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-          Cosecha entra a <b className="text-fg">tolva</b>. Luego: flotación
-          (omisible), fermentación al aire (omisible), despulpado, fermentación
-          en tanque (omisible), lavado, secado, bodega, despacho y venta.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
+            Cosecha · Grano
+          </p>
+          <h1 className="font-display text-4xl tracking-tight">
+            Beneficio / bodega
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+            Del lote de <b className="text-fg">cereza</b> a{" "}
+            <b className="text-fg">pergamino</b>. Entra a{" "}
+            <b className="text-fg">tolva</b>; luego flotación (omisible),
+            fermentación al aire (omisible), despulpado, fermentación en tanque
+            (omisible), lavado, secado, bodega, despacho y venta. Pesaje
+            obligatorio en etapas con merma (P0).
+          </p>
+          <div className="mt-3">
+            <Link
+              to="/cosecha"
+              search={{ ses: undefined, lote: undefined, nuevo: undefined }}
+              className="text-sm text-accent hover:underline"
+            >
+              ← Volver a Cosecha
+            </Link>
+          </div>
+        </div>
       </header>
+
+      <nav
+        aria-label="Dentro de Cosecha"
+        className="flex flex-wrap gap-2 rounded-xl border border-border bg-elevated/40 p-2"
+      >
+        <Link
+          to="/cosecha"
+          search={{ ses: undefined, lote: undefined, nuevo: undefined }}
+          className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm text-muted hover:bg-surface hover:text-fg"
+        >
+          Cereza
+        </Link>
+        <span className="inline-flex min-h-10 items-center rounded-lg bg-surface px-3 text-sm font-medium text-fg">
+          Grano / beneficio
+        </span>
+      </nav>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Lotes en proceso" value={String(S.inProcess)} hint="Sin venta" />
-        <Kpi label="En bodega" value={String(inBodega)} hint="Listos para despacho" />
+        <Kpi label="En bodega" value={String(inBodega)} hint="Pergamino listo" />
         <Kpi
           label="Kg cereza en flujo"
           value={fmtNum(
             batches.reduce((a, b) => a + (b.saleId ? 0 : b.kgCereza), 0),
             1,
           )}
+          hint="Entrada cereza (no pergamino)"
         />
         <Kpi
           label="Vanos (flotación)"
@@ -107,14 +139,17 @@ function Page() {
           <div className="flex items-start gap-3">
             <Factory className="mt-1 size-5 text-accent" />
             <div>
-              <CardTitle>Sin lotes de beneficio</CardTitle>
+              <CardTitle>Sin lotes de Grano / beneficio</CardTitle>
               <CardHint>
-                Al guardar una sesión de cosecha se crea el lote y entra a
-                tolva. Vaya a Cosecha, registre el día y vuelva aquí.
+                Al guardar una sesión de cereza en Cosecha se crea el lote y
+                entra a tolva. Registre el día y vuelva aquí al pergamino.
               </CardHint>
               <Button className="mt-4" asChild>
-                <Link to="/cosecha" search={{ ses: undefined }}>
-                  Ir a cosecha
+                <Link
+                  to="/cosecha"
+                  search={{ nuevo: "1", ses: undefined, lote: undefined }}
+                >
+                  Registrar cereza
                 </Link>
               </Button>
             </div>
@@ -282,7 +317,7 @@ function BatchBoard({
           <CardTitle>{batch.code}</CardTitle>
           <CardHint>
             {fmtDate(batch.fecha)} · {batch.lote} {lotNombre(lots, batch.lote)} ·
-            entrada {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
+            cereza {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
           </CardHint>
         </div>
         {writable && (next?.id === "venta" || batch.saleId) ? (

@@ -198,7 +198,12 @@ function ShellApp({
             ? pathname === "/estado"
             : item.label === "Territorios"
               ? false
-              : pathname === item.to || pathname.startsWith(`${item.to}/`);
+              : item.label === "Cosecha"
+                ? pathname === "/cosecha" ||
+                  pathname.startsWith("/cosecha/") ||
+                  pathname === "/beneficio" ||
+                  pathname.startsWith("/beneficio/")
+                : pathname === item.to || pathname.startsWith(`${item.to}/`);
       const Icon = item.icon;
       return (
         <Link
@@ -226,7 +231,7 @@ function ShellApp({
         <div>
           <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            Pulso · Territorios
+            Pulso · Territorios · Cosecha
           </div>
         </div>
         <Button
@@ -254,6 +259,40 @@ function ShellApp({
               {levelLabel}
             </div>
             {NavList(navItems)}
+            {pathname === "/cosecha" ||
+            pathname.startsWith("/cosecha/") ||
+            pathname === "/beneficio" ||
+            pathname.startsWith("/beneficio/") ? (
+              <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
+                <Link
+                  to="/cosecha"
+                  search={{ ses: undefined, lote: undefined, nuevo: undefined }}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex min-h-9 items-center rounded-md px-2 text-xs transition-colors",
+                    pathname === "/cosecha"
+                      ? "text-fg"
+                      : "text-muted hover:text-fg",
+                  )}
+                >
+                  Cereza
+                </Link>
+                <Link
+                  to="/beneficio"
+                  search={{ batch: undefined }}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex min-h-9 items-center rounded-md px-2 text-xs transition-colors",
+                    pathname === "/beneficio" ||
+                      pathname.startsWith("/beneficio/")
+                      ? "text-fg"
+                      : "text-muted hover:text-fg",
+                  )}
+                >
+                  Grano / beneficio
+                </Link>
+              </div>
+            ) : null}
             {!atHoy ? (
               <Link
                 to="/"
@@ -267,7 +306,7 @@ function ShellApp({
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Pulso → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
+              Pulso → Finca → Lote. Cosecha cubre cereza y Grano / beneficio. Cada cifra lleva el nombre de su finca.
             </p>
             <div className="px-1">
               <UserButton />
