@@ -1,5 +1,10 @@
 import { areaActiva, harvestLots, rollupCode, DEFAULT_LOTS, type LotCode, type FarmLot } from "./lots";
 import type { FarmState } from "./store";
+import {
+  aggregateWorkerEarnings,
+  totalPayCapped,
+  workerKey,
+} from "./payroll";
 import type { CostLine, ProcessBatch, Sale } from "./types";
 import {
   AREA_FINCA_HA,
@@ -25,7 +30,8 @@ export function farmStats(s: FarmState) {
     ]),
   ];
   const kg = sessions.reduce((a, x) => a + x.totKg, 0);
-  const pay = sessions.reduce((a, x) => a + x.totPay, 0);
+  // M.O. con tope de 1 jornal/trabajador/día (corrige sesiones históricas mal guardadas).
+  const pay = totalPayCapped(sessions);
   const alim = sessions.reduce((a, x) => a + x.totAlim, 0);
   const hrs = sessions.reduce((a, x) => a + x.totHrs, 0);
   const costoCosecha = pay + alim;
@@ -56,9 +62,13 @@ export function farmStats(s: FarmState) {
     string,
     { nombre: string; kg: number; hrs: number; pago: number; dias: number }
   >();
+  const capped = new Map(
+    aggregateWorkerEarnings(sessions).map((w) => [workerKey(w.nombre), w]),
+  );
+  const daysSeen = new Map<string, Set<string>>();
   sessions.forEach((ses) => {
     ses.trabajadores.forEach((w) => {
-      const k = w.nombre.toLowerCase();
+      const k = workerKey(w.nombre);
       const cur = workers.get(k) || {
         nombre: w.nombre,
         kg: 0,
@@ -68,11 +78,16 @@ export function farmStats(s: FarmState) {
       };
       cur.kg += w.kg;
       cur.hrs += w.horas;
-      cur.pago += w.pago;
-      cur.dias += 1;
+      const seen = daysSeen.get(k) || new Set<string>();
+      seen.add(ses.fecha.slice(0, 10));
+      daysSeen.set(k, seen);
+      cur.dias = seen.size;
       workers.set(k, cur);
     });
   });
+  for (const [k, cur] of workers) {
+    cur.pago = capped.get(k)?.earned ?? 0;
+  }
   const byDay = new Map<string, { kg: number; cost: number }>();
   sessions.forEach((ses) => {
     const cur = byDay.get(ses.fecha) || { kg: 0, cost: 0 };
@@ -320,7 +335,7 @@ function buildCostSheet(input: {
     {
       id: "mo",
       label: "Mano de obra",
-      formula: "Σ pago recolector  ·  por kg: redondeo(kg × $/kg)  ·  jornal: tarifa fija",
+      formula: "Σ pago recolector  ·  por kg: redondeo(kg × $/kg)  ·  jornal: ≤1 tarifa/día",
       value: input.pay,
       hint: "Devengado. No es caja hasta liquidar.",
     },

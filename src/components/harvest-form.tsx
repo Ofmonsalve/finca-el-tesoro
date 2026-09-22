@@ -3,6 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { harvestLots, lotByCode, type LotCode } from "@/lib/lots";
 import { buildSession, useFarm } from "@/lib/store";
+import {
+  computeSessionWorkers,
+  jornalClaimedOnDate,
+  sessionDay,
+} from "@/lib/payroll";
 import { fmtKg, fmtMoney, fmtNum, fmtPct, fmtRatio, n, todayISO } from "@/lib/format";
 import { hoursBetween, uid } from "@/lib/utils";
 import type { HarvestType, PayModel, WorkerRow } from "@/lib/types";
@@ -106,34 +111,32 @@ export function HarvestForm({ editId }: { editId?: string }) {
     const vKg = n(valorKg);
     const vJ = n(jornal);
     const vA = n(alim);
-    const rows: WorkerRow[] = workers
+    const day = sessionDay(fecha);
+    const claimed = jornalClaimedOnDate(sessions, day, editingId);
+    const draft = workers
       .filter((w) => w.nombre.trim())
-      .map((w) => {
-        const kg = n(w.kg);
-        const horas = hoursBetween(w.hi, w.hf);
-        const pago =
-          modelo === "jornal"
-            ? kg > 0 || horas > 0
-              ? vJ
-              : 0
-            : Math.round(kg * vKg);
-        return {
-          id: w.key,
-          nombre: w.nombre.trim(),
-          hi: w.hi,
-          hf: w.hf,
-          kg,
-          horas,
-          pago,
-          alim: kg > 0 ? vA : 0,
-        };
-      });
+      .map((w) => ({
+        id: w.key,
+        nombre: w.nombre,
+        hi: w.hi,
+        hf: w.hf,
+        kg: n(w.kg),
+      }));
+    const rows = computeSessionWorkers(
+      draft,
+      modelo,
+      vKg,
+      vJ,
+      vA,
+      claimed,
+      day,
+    );
     const totKg = rows.reduce((a, r) => a + r.kg, 0);
     const totPay = rows.reduce((a, r) => a + r.pago, 0);
     const totHrs = rows.reduce((a, r) => a + r.horas, 0);
     const totAlim = rows.reduce((a, r) => a + r.alim, 0);
     return { rows, totKg, totPay, totHrs, totAlim, totCost: totPay + totAlim, vKg };
-  }, [workers, valorKg, jornal, alim, modelo]);
+  }, [workers, valorKg, jornal, alim, modelo, fecha, sessions, editingId]);
 
   const today = sessionsOn(sessions, fecha);
   const lotsToday = new Set(today.map((s) => s.lote));
@@ -174,6 +177,7 @@ export function HarvestForm({ editId }: { editId?: string }) {
       responsable,
       obs,
       trabajadores: live.rows,
+      priorSessions: sessions,
     });
     saveSession(session);
     const batchId =
@@ -281,7 +285,13 @@ export function HarvestForm({ editId }: { editId?: string }) {
           <Field label="Tipo de pase" hint="lista">
             <Select
               value={tipo}
-              onChange={(e) => setTipo(e.target.value as HarvestType)}
+              onChange={(e) => {
+                const t = e.target.value as HarvestType;
+                setTipo(t);
+                // Preferencia operativa: secundaria/mitaca → jornal; principal → por_kg.
+                // El usuario puede cambiar el modelo después; no bloquea el tope de jornal.
+                setModelo(t === "Secundaria" ? "jornal" : "por_kg");
+              }}
             >
               <option value="Principal">Principal</option>
               <option value="Secundaria">Secundaria / entrecosecha</option>
@@ -430,8 +440,16 @@ export function HarvestForm({ editId }: { editId?: string }) {
           {workers.map((w, i) => {
             const hrs = hoursBetween(w.hi, w.hf);
             const kg = n(w.kg);
-            const pago =
-              modelo === "jornal" ? n(jornal) : Math.round(kg * n(valorKg));
+            const liveRow = live.rows.find((r) => r.id === w.key);
+            // Alinear con computeWorker: sin nombre → 0; jornal solo si kg>0 || horas>0; tope 1/día.
+            const pago = !w.nombre.trim()
+              ? 0
+              : liveRow?.pago ??
+                (modelo === "jornal"
+                  ? kg > 0 || hrs > 0
+                    ? n(jornal)
+                    : 0
+                  : Math.round(kg * n(valorKg)));
             return (
               <div
                 key={w.key}
@@ -537,8 +555,15 @@ export function HarvestForm({ editId }: { editId?: string }) {
               {workers.map((w, i) => {
                 const hrs = hoursBetween(w.hi, w.hf);
                 const kg = n(w.kg);
-                const pago =
-                  modelo === "jornal" ? n(jornal) : Math.round(kg * n(valorKg));
+                const liveRow = live.rows.find((r) => r.id === w.key);
+                const pago = !w.nombre.trim()
+                  ? 0
+                  : liveRow?.pago ??
+                    (modelo === "jornal"
+                      ? kg > 0 || hrs > 0
+                        ? n(jornal)
+                        : 0
+                      : Math.round(kg * n(valorKg)));
                 return (
                   <tr key={w.key}>
                     <Td>

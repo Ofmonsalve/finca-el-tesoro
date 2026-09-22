@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { hoursBetween, uid } from "./utils";
+import { uid } from "./utils";
 import { n } from "./format";
 import { DEFAULT_LOTS, nextLotCode, type FarmLot, type LotCode } from "./lots";
 import { PAY_METHODS, nextPendingStage, type StageId } from "./process";
@@ -17,6 +17,21 @@ import type {
   Settings,
   WorkerRow,
 } from "./types";
+import {
+  computeSessionWorkers,
+  computeWorker as computeWorkerPayroll,
+  jornalClaimedOnDate,
+  sessionDay,
+} from "./payroll";
+
+export {
+  aggregateWorkerEarnings,
+  computeWorkerPago,
+  jornalClaimedOnDate,
+  qualifiesForJornal,
+  totalPayCapped,
+  workerKey,
+} from "./payroll";
 
 const SK = "ft-tesoro-v1";
 
@@ -508,27 +523,21 @@ export const useFarm = create<FarmState>()(
 );
 
 export function computeWorker(
-  row: Pick<WorkerRow, "nombre" | "hi" | "hf" | "kg">,
+  row: Pick<WorkerRow, "nombre" | "hi" | "hf" | "kg"> & { id?: string },
   modelo: PayModel,
   valorKg: number,
   jornal: number,
   alim: number,
+  jornalAlreadyEarnedToday = false,
 ): WorkerRow {
-  const horas = hoursBetween(row.hi, row.hf);
-  const kg = n(row.kg);
-  const tarifa = n(valorKg);
-  const pago =
-    modelo === "jornal" ? (kg > 0 || horas > 0 ? n(jornal) : 0) : Math.round(kg * tarifa);
-  return {
-    id: uid("w"),
-    nombre: row.nombre.trim(),
-    hi: row.hi,
-    hf: row.hf,
-    kg,
-    horas,
-    pago,
-    alim: kg > 0 ? n(alim) : 0,
-  };
+  return computeWorkerPayroll(
+    row,
+    modelo,
+    valorKg,
+    jornal,
+    alim,
+    jornalAlreadyEarnedToday,
+  );
 }
 
 export function buildSession(input: {
@@ -546,10 +555,24 @@ export function buildSession(input: {
   factor: number;
   responsable: string;
   obs: string;
-  trabajadores: WorkerRow[];
+  trabajadores: Array<Pick<WorkerRow, "nombre" | "hi" | "hf" | "kg"> & { id?: string }>;
+  /** Prior sessions used to enforce ≤1 jornal / worker / day (America/Bogota fecha). */
+  priorSessions?: HarvestSession[];
 }): HarvestSession {
-  const trabajadores = input.trabajadores.map((w) =>
-    computeWorker(w, input.modelo, input.valorKg, input.jornal, input.alimUnit),
+  const day = sessionDay(input.fecha);
+  const claimed = jornalClaimedOnDate(
+    input.priorSessions ?? [],
+    day,
+    input.id,
+  );
+  const trabajadores = computeSessionWorkers(
+    input.trabajadores,
+    input.modelo,
+    input.valorKg,
+    input.jornal,
+    input.alimUnit,
+    claimed,
+    day,
   );
   const totKg = trabajadores.reduce((a, w) => a + w.kg, 0);
   const totPay = trabajadores.reduce((a, w) => a + w.pago, 0);
@@ -557,11 +580,11 @@ export function buildSession(input: {
   const totAlim = trabajadores.reduce((a, w) => a + w.alim, 0);
   const code =
     input.code ||
-    `${input.lote}-${input.fecha.replace(/-/g, "")}-P${input.pasada}-${String(Date.now()).slice(-4)}`;
+    `${input.lote}-${day.replace(/-/g, "")}-P${input.pasada}-${String(Date.now()).slice(-4)}`;
   return {
     id: input.id || uid("ses"),
     code,
-    fecha: input.fecha,
+    fecha: day,
     lote: input.lote,
     bloque: input.bloque || "General",
     tipo: input.tipo,

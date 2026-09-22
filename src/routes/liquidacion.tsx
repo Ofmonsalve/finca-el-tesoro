@@ -8,6 +8,7 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { fmtDate, fmtMoney, n, todayISO } from "@/lib/format";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
+import { aggregateWorkerEarnings } from "@/lib/payroll";
 import { uid } from "@/lib/utils";
 import { Kpi } from "@/components/kpi";
 import { WriteGate } from "@/components/write-gate";
@@ -42,31 +43,14 @@ function Page() {
   const [slip, setSlip] = useState<Slip | null>(null);
 
   const earned = useMemo(() => {
-    const m = new Map<
-      string,
-      { nombre: string; earned: number; alim: number; sessionIds: string[] }
-    >();
-    farm.sessions.forEach((s) => {
-      s.trabajadores.forEach((w) => {
-        const k = w.nombre.toLowerCase();
-        const cur = m.get(k) || {
-          nombre: w.nombre,
-          earned: 0,
-          alim: 0,
-          sessionIds: [],
-        };
-        cur.earned += w.pago;
-        cur.alim += w.alim;
-        if (!cur.sessionIds.includes(s.id)) cur.sessionIds.push(s.id);
-        m.set(k, cur);
-      });
-    });
+    // Tope: ≤1 jornal / trabajador / día (America/Bogota) vía aggregateWorkerEarnings.
+    const rows = aggregateWorkerEarnings(farm.sessions);
     const paid = new Map<string, number>();
     farm.liquidations.forEach((l) => {
       const k = l.trabajador.toLowerCase();
       paid.set(k, (paid.get(k) || 0) + l.monto);
     });
-    return [...m.values()]
+    return rows
       .map((w) => ({
         ...w,
         paid: paid.get(w.nombre.toLowerCase()) || 0,
