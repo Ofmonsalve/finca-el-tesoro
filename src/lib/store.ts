@@ -23,6 +23,7 @@ import type {
   HarvestType,
   JournalEntry,
   Liquidation,
+  FarmPerson,
   LotCultivo,
   LotLabor,
   LotNutrition,
@@ -34,6 +35,7 @@ import type {
   WorkerRow,
 } from "./types";
 import { upsertById, upsertCultivoForLot } from "./lot-ops";
+import { upsertPersona } from "./talento";
 import {
   computeSessionWorkers,
   computeWorker as computeWorkerPayroll,
@@ -71,6 +73,7 @@ export type FarmState = {
   labores: LotLabor[];
   nutrition: LotNutrition[];
   cultivos: LotCultivo[];
+  personas: FarmPerson[];
   setHydrated: (v: boolean) => void;
   updateSettings: (p: Partial<Settings>) => void;
   saveLot: (lot: FarmLot) => { ok: boolean; error?: string };
@@ -99,6 +102,7 @@ export type FarmState = {
   saveLabor: (l: LotLabor) => void;
   saveNutrition: (n: LotNutrition) => void;
   saveCultivo: (c: LotCultivo) => void;
+  savePersona: (p: FarmPerson) => void;
   saveJournal: (j: JournalEntry) => void;
   importBook: (data: unknown) => { ok: boolean; error?: string };
   exportBook: () => Record<string, unknown>;
@@ -231,6 +235,7 @@ export const useFarm = create<FarmState>()(
       labores: [],
       nutrition: [],
       cultivos: [],
+      personas: [],
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       saveLot: (lot) => {
@@ -516,6 +521,9 @@ export const useFarm = create<FarmState>()(
       saveCultivo: (row) => {
         set({ cultivos: upsertCultivoForLot(get().cultivos, row) });
       },
+      savePersona: (row) => {
+        set({ personas: upsertPersona(get().personas ?? [], row) });
+      },
       saveJournal: (j) => set({ journals: [j, ...get().journals] }),
       exportBook: () => ({
         v: 1,
@@ -532,6 +540,7 @@ export const useFarm = create<FarmState>()(
         labores: get().labores,
         nutrition: get().nutrition,
         cultivos: get().cultivos,
+        personas: get().personas ?? [],
       }),
       importBook: (data) => {
         if (!data || typeof data !== "object") {
@@ -557,6 +566,7 @@ export const useFarm = create<FarmState>()(
           labores: Array.isArray(p.labores) ? p.labores : [],
           nutrition: Array.isArray(p.nutrition) ? p.nutrition : [],
           cultivos: Array.isArray(p.cultivos) ? p.cultivos : [],
+          personas: Array.isArray(p.personas) ? p.personas : [],
         });
         return { ok: true };
       },
@@ -601,6 +611,7 @@ export const useFarm = create<FarmState>()(
             labores: current.labores,
             nutrition: current.nutrition,
             cultivos: current.cultivos,
+            personas: current.personas ?? [],
           };
           writeFarmBookToStorage(current.farmId, slice);
         }
@@ -626,6 +637,7 @@ export const useFarm = create<FarmState>()(
             labores: (loaded.labores as FarmState["labores"]) ?? [],
             nutrition: (loaded.nutrition as FarmState["nutrition"]) ?? [],
             cultivos: (loaded.cultivos as FarmState["cultivos"]) ?? [],
+            personas: (loaded.personas as FarmState["personas"]) ?? [],
           });
         } else {
           const empty = createEmptyFarmBook(id);
@@ -642,6 +654,7 @@ export const useFarm = create<FarmState>()(
             labores: [],
             nutrition: [],
             cultivos: [],
+            personas: [],
           });
           writeFarmBookToStorage(id, {
             farmId: id,
@@ -656,6 +669,7 @@ export const useFarm = create<FarmState>()(
             labores: [],
             nutrition: [],
             cultivos: [],
+            personas: [],
           });
         }
         return { ok: true };
@@ -708,6 +722,9 @@ export const useFarm = create<FarmState>()(
           cultivos: Array.isArray(p.cultivos)
             ? p.cultivos
             : current.cultivos ?? [],
+          personas: Array.isArray(p.personas)
+            ? p.personas
+            : current.personas ?? [],
         };
       },
       partialize: (s) => ({
@@ -723,6 +740,7 @@ export const useFarm = create<FarmState>()(
         labores: s.labores,
         nutrition: s.nutrition,
         cultivos: s.cultivos,
+        personas: s.personas ?? [],
       }),
     },
   ),

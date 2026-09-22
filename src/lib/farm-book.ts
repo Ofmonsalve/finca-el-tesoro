@@ -25,6 +25,7 @@ export type FarmBookPayload = {
   labores?: Json[];
   nutrition?: Json[];
   cultivos?: Json[];
+  personas?: Json[];
 };
 
 export type LoadFarmBookResult = {
