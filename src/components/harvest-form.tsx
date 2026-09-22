@@ -38,7 +38,7 @@ const emptyW = (): DraftW => ({
   kg: "",
 });
 
-export function HarvestForm({ editId }: { editId?: string }) {
+export function HarvestForm({ editId, initialLote }: { editId?: string; initialLote?: string }) {
   const settings = useFarm((s) => s.settings);
   const sessions = useFarm((s) => s.sessions);
   const batches = useFarm((s) => s.batches);
@@ -67,6 +67,14 @@ export function HarvestForm({ editId }: { editId?: string }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const activeLots = harvestLots(lotsCat);
   const currentLot = lotByCode(lotsCat, lote);
+
+  useEffect(() => {
+    if (editId) return;
+    if (!initialLote) return;
+    const ok = harvestLots(lotsCat).some((l) => l.code === initialLote);
+    if (!ok) return;
+    setLote(initialLote);
+  }, [editId, initialLote, lotsCat]);
 
   useEffect(() => {
     if (!editId) return;

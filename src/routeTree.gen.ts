@@ -22,6 +22,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LotesRouteImport } from './routes/lotes'
 import { Route as ProductividadRouteImport } from './routes/productividad'
 import { Route as VentasRouteImport } from './routes/ventas'
+import { Route as LotesCodeRouteImport } from './routes/lotes.$code'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const VentasRoute = VentasRouteImport.update({
   path: '/ventas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LotesCodeRoute = LotesCodeRouteImport.update({
+  id: '/$code',
+  path: '/$code',
+  getParentRoute: () => LotesRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -106,9 +112,10 @@ export interface FileRoutesByFullPath {
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
   '/login': typeof LoginRoute
-  '/lotes': typeof LotesRoute
+  '/lotes': typeof LotesRouteWithChildren
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/lotes/$code': typeof LotesCodeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -122,9 +129,10 @@ export interface FileRoutesByTo {
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
   '/login': typeof LoginRoute
-  '/lotes': typeof LotesRoute
+  '/lotes': typeof LotesRouteWithChildren
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/lotes/$code': typeof LotesCodeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -139,9 +147,10 @@ export interface FileRoutesById {
   '/historial': typeof HistorialRoute
   '/liquidacion': typeof LiquidacionRoute
   '/login': typeof LoginRoute
-  '/lotes': typeof LotesRoute
+  '/lotes': typeof LotesRouteWithChildren
   '/productividad': typeof ProductividadRoute
   '/ventas': typeof VentasRoute
+  '/lotes/$code': typeof LotesCodeRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/lotes/$code'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/lotes/$code'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/lotes'
     | '/productividad'
     | '/ventas'
+    | '/lotes/$code'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -206,7 +218,7 @@ export interface RootRouteChildren {
   HistorialRoute: typeof HistorialRoute
   LiquidacionRoute: typeof LiquidacionRoute
   LoginRoute: typeof LoginRoute
-  LotesRoute: typeof LotesRoute
+  LotesRoute: typeof LotesRouteWithChildren
   ProductividadRoute: typeof ProductividadRoute
   VentasRoute: typeof VentasRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -305,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VentasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lotes/$code': {
+      id: '/lotes/$code'
+      path: '/$code'
+      fullPath: '/lotes/$code'
+      preLoaderRoute: typeof LotesCodeRouteImport
+      parentRoute: typeof LotesRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -314,6 +333,16 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface LotesRouteChildren {
+  LotesCodeRoute: typeof LotesCodeRoute
+}
+
+const LotesRouteChildren: LotesRouteChildren = {
+  LotesCodeRoute: LotesCodeRoute,
+}
+
+const LotesRouteWithChildren = LotesRoute._addFileChildren(LotesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -326,7 +355,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistorialRoute: HistorialRoute,
   LiquidacionRoute: LiquidacionRoute,
   LoginRoute: LoginRoute,
-  LotesRoute: LotesRoute,
+  LotesRoute: LotesRouteWithChildren,
   ProductividadRoute: ProductividadRoute,
   VentasRoute: VentasRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
@@ -334,12 +363,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
