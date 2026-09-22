@@ -42,8 +42,9 @@ function Page() {
         </p>
         <h1 className="font-display text-4xl tracking-tight">Equipo</h1>
         <p className="text-sm text-muted">
-          Esta es su finca. Asuma la administración para registrar y asignar
-          roles.
+          Acceso al equipo según su rol. Si aún no opera la finca, espere a
+          que un administrador le asigne permisos. Solo si no hay
+          administrador puede registrarse el primero.
         </p>
         <ClaimAdminButton />
       </div>

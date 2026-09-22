@@ -11,6 +11,8 @@ type Access = {
   role: FarmRole;
   members: FarmMember[];
   ready: boolean;
+  /** Server-side: true only when no admin exists (empty/orphan bootstrap). */
+  canBootstrapAdmin: boolean;
   refresh: () => void;
 };
 
@@ -20,6 +22,7 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
   const [role, setRole] = useState<FarmRole>("pendiente");
   const [members, setMembers] = useState<FarmMember[]>([]);
+  const [canBootstrap, setCanBootstrap] = useState(false);
   const [ready, setReady] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -27,9 +30,11 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     let alive = true;
     setReady(false);
+    // Fail-safe must NOT grant admin (P0). Stay pendiente until server answers.
     const failSafe = window.setTimeout(() => {
       if (!alive) return;
-      setRole("admin");
+      setRole("pendiente");
+      setCanBootstrap(false);
       setReady(true);
     }, 4000);
     void ensureMembership({
@@ -43,13 +48,15 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(failSafe);
         setRole(r.role);
         setMembers(r.members);
+        setCanBootstrap(Boolean(r.canBootstrapAdmin));
         setReady(true);
       })
       .catch(() => {
         if (!alive) return;
         window.clearTimeout(failSafe);
-        setRole("admin");
+        setRole("pendiente");
         setMembers([]);
+        setCanBootstrap(false);
         setReady(true);
       });
     return () => {
@@ -64,6 +71,7 @@ export function FarmAccessProvider({ children }: { children: ReactNode }) {
         role,
         members,
         ready,
+        canBootstrapAdmin: canBootstrap,
         refresh: () => setTick((n) => n + 1),
       }}
     >
@@ -79,6 +87,7 @@ export function useFarmAccess(): Access {
       role: "pendiente",
       members: [],
       ready: false,
+      canBootstrapAdmin: false,
       refresh: () => {},
     };
   }
