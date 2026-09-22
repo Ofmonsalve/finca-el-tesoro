@@ -19,6 +19,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { BookSync } from "@/components/book-sync";
+import { useBookSyncStatus } from "@/lib/book-sync-status";
 import { ClaimAdminButton } from "@/components/claim-admin";
 import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
@@ -265,6 +266,7 @@ function ShellApp({
           ) : (
             <>
               <BookSync />
+              <BookSyncBanner />
               {children}
             </>
           )}
@@ -273,3 +275,26 @@ function ShellApp({
     </div>
   );
 }
+
+function BookSyncBanner() {
+  const status = useBookSyncStatus((s) => s.status);
+  const detail = useBookSyncStatus((s) => s.detail);
+  if (status !== "conflict" && status !== "error") return null;
+  return (
+    <div
+      role="status"
+      className={cn(
+        "mb-4 rounded-md border px-3 py-2 text-sm no-print",
+        status === "conflict"
+          ? "border-amber-600/40 bg-amber-500/10 text-amber-100"
+          : "border-red-600/40 bg-red-500/10 text-red-100",
+      )}
+    >
+      <p className="font-medium">
+        {status === "conflict" ? "Sincronización en conflicto" : "Error de sincronización"}
+      </p>
+      {detail ? <p className="mt-1 text-xs opacity-90">{detail}</p> : null}
+    </div>
+  );
+}
+
