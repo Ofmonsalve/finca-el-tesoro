@@ -12,10 +12,14 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { fmtDate, fmtKg, fmtMoney, fmtNum, n, todayISO } from "@/lib/format";
 import { lotByCode, rollupCode, type LotStatus } from "@/lib/lots";
 import {
+  CULTIVO_ESTADOS,
   LABOR_TIPOS,
   NUTRITION_ESTADOS,
   NUTRITION_UNIDADES,
   NUTRITION_VIAS,
+  cultivoEstadoLabel,
+  cultivoForLot,
+  hasCultivoDesign,
   laborTipoLabel,
   laboresForLot,
   nutritionEstadoLabel,
@@ -25,8 +29,10 @@ import {
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
 import type {
+  CultivoEstado,
   HarvestSession,
   LaborTipo,
+  LotCultivo,
   LotLabor,
   LotNutrition,
   NutritionEstado,
@@ -81,6 +87,10 @@ function LotRoomPage() {
   const lotNutrition = useMemo(
     () => nutritionForLot(farm.nutrition, code, { farmId: farm.farmId }),
     [farm.nutrition, code, farm.farmId],
+  );
+  const lotCultivo = useMemo(
+    () => cultivoForLot(farm.cultivos, code, { farmId: farm.farmId }),
+    [farm.cultivos, code, farm.farmId],
   );
 
   const kpi = S.byLot[code] ?? { kg: 0, cost: 0, hrs: 0, n: 0 };
@@ -193,9 +203,12 @@ function LotRoomPage() {
         />
       ) : null}
       {cara === "cultivo" ? (
-        <ComingFace
-          title="Cultivo"
-          body="Variedad, densidad, edad de soca y estado agronómico del lote. Por ahora use la ficha del mapa; el detalle vivo llega en una próxima entrega."
+        <CultivoFace
+          code={lot.code}
+          lotName={lot.nombre}
+          farmId={farm.farmId}
+          lotVariedad={lot.variedad}
+          design={lotCultivo}
         />
       ) : null}
     </div>
@@ -762,6 +775,328 @@ function NutritionFace({
             </Table>
           </div>
         )}
+      </Card>
+    </div>
+  );
+}
+
+
+function CultivoFace({
+  code,
+  lotName,
+  farmId,
+  lotVariedad,
+  design,
+}: {
+  code: string;
+  lotName: string;
+  farmId: string;
+  lotVariedad: string;
+  design: LotCultivo | null;
+}) {
+  const saveCultivo = useFarm((s) => s.saveCultivo);
+  const [variedad, setVariedad] = useState(
+    design?.variedad || lotVariedad || "",
+  );
+  const [mezcla, setMezcla] = useState(Boolean(design?.mezcla));
+  const [variedadNota, setVariedadNota] = useState(design?.variedadNota || "");
+  const [anioSiembra, setAnioSiembra] = useState(
+    design?.anioSiembra != null ? String(design.anioSiembra) : "",
+  );
+  const [edadApprox, setEdadApprox] = useState(design?.edadApprox || "");
+  const [densidad, setDensidad] = useState(design?.densidad || "");
+  const [plantasApprox, setPlantasApprox] = useState(
+    design?.plantasApprox != null ? String(design.plantasApprox) : "",
+  );
+  const [estado, setEstado] = useState<CultivoEstado>(
+    design?.estado ?? "produccion",
+  );
+  const [sombra, setSombra] = useState(
+    design?.sombra == null ? "omit" : design.sombra ? "si" : "no",
+  );
+  const [sombraTipo, setSombraTipo] = useState(design?.sombraTipo || "");
+  const [err, setErr] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!variedad.trim()) {
+      setErr("Indique la variedad (o anote si es mezcla).");
+      return;
+    }
+    const yearRaw = anioSiembra.trim();
+    let year: number | undefined;
+    if (yearRaw) {
+      const y = Number(yearRaw);
+      if (!Number.isFinite(y) || y < 1900 || y > 2100) {
+        setErr("Año de siembra inválido.");
+        return;
+      }
+      year = Math.round(y);
+    }
+    const plantasRaw = plantasApprox.trim();
+    let plantas: number | undefined;
+    if (plantasRaw) {
+      const p = n(plantasRaw);
+      if (p < 0) {
+        setErr("El conteo de plantas no puede ser negativo.");
+        return;
+      }
+      if (p > 0) plantas = Math.round(p);
+    }
+    if (!densidad.trim() && plantas == null) {
+      setErr("Indique densidad (plantas/ha o marco) o un conteo de plantas.");
+      return;
+    }
+    setErr(null);
+    const row: LotCultivo = {
+      id: design?.id ?? uid("cul"),
+      farmId,
+      lote: code,
+      title: lotName,
+      variedad: variedad.trim(),
+      estado,
+      updatedAt: new Date().toISOString(),
+    };
+    if (mezcla) {
+      row.mezcla = true;
+      if (variedadNota.trim()) row.variedadNota = variedadNota.trim();
+    }
+    if (year != null) row.anioSiembra = year;
+    if (edadApprox.trim()) row.edadApprox = edadApprox.trim();
+    if (densidad.trim()) row.densidad = densidad.trim();
+    if (plantas != null) row.plantasApprox = plantas;
+    if (sombra === "si") {
+      row.sombra = true;
+      if (sombraTipo.trim()) row.sombraTipo = sombraTipo.trim();
+    } else if (sombra === "no") {
+      row.sombra = false;
+    }
+    saveCultivo(row);
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  const filled = hasCultivoDesign(design);
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-subtle">
+          Cultivo · diseño del lote
+        </p>
+        <h2 className="mt-1 font-display text-3xl tracking-tight">{lotName}</h2>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          Una sola ficha limpia: variedad, año/edad, densidad o conteo, estado
+          (levante · producción · zoca/renovación) y sombra opcional. Sin
+          labores, sin nutrición, sin kg de cosecha — y sin dinero a Pulso.
+        </p>
+      </header>
+
+      <Card>
+        <CardTitle>{lotName}</CardTitle>
+        <CardHint>
+          Título = nombre del lote. El mapa planta por planta es el próximo salto;
+          aquí solo un conteo simple si lo tiene.
+        </CardHint>
+
+        {filled && design ? (
+          <div className="mt-5 rounded-xl border border-border bg-elevated/50 px-5 py-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                tone={
+                  design.estado === "produccion"
+                    ? "ok"
+                    : design.estado === "levante"
+                      ? "warn"
+                      : "muted"
+                }
+              >
+                {cultivoEstadoLabel(design.estado)}
+              </Badge>
+              {design.sombra === true ? (
+                <Badge tone="muted">
+                  Sombra{design.sombraTipo ? ` · ${design.sombraTipo}` : ""}
+                </Badge>
+              ) : design.sombra === false ? (
+                <Badge tone="muted">Sin sombra</Badge>
+              ) : null}
+              {design.mezcla ? <Badge tone="warn">Mezcla</Badge> : null}
+            </div>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.14em] text-subtle">
+                  Variedad
+                </dt>
+                <dd className="mt-1 text-sm text-fg">
+                  {design.variedad}
+                  {design.variedadNota ? (
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {design.variedadNota}
+                    </span>
+                  ) : null}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.14em] text-subtle">
+                  Año / edad
+                </dt>
+                <dd className="mt-1 text-sm text-fg">
+                  {design.anioSiembra != null ? design.anioSiembra : "—"}
+                  {design.edadApprox ? ` · ${design.edadApprox}` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.14em] text-subtle">
+                  Densidad
+                </dt>
+                <dd className="mt-1 text-sm text-fg">
+                  {design.densidad?.trim() ? design.densidad : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-[0.14em] text-subtle">
+                  Plantas (conteo)
+                </dt>
+                <dd className="mt-1 text-sm text-fg">
+                  {design.plantasApprox != null && design.plantasApprox > 0
+                    ? fmtNum(design.plantasApprox, 0)
+                    : "—"}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-4 text-xs text-subtle">
+              Sin mapa planta a planta todavía — ese es el próximo salto.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-dashed border-border bg-elevated/40 px-5 py-8 text-center">
+            <p className="font-display text-2xl text-fg">Sin diseño aún</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              Capture variedad, año o edad, densidad o conteo, y el estado del
+              lote. Vacío honesto — sin cifras inventadas.
+            </p>
+            <p className="mx-auto mt-3 max-w-sm text-xs text-subtle">
+              El mapa planta por planta es el próximo salto.
+            </p>
+          </div>
+        )}
+
+        <WriteGate>
+          <form onSubmit={submit} className="mt-6 space-y-4 border-t border-border pt-5">
+            <Field label="Variedad">
+              <Input
+                value={variedad}
+                onChange={(e) => setVariedad(e.target.value)}
+                placeholder="Ej. Castillo, Caturra…"
+                required
+              />
+            </Field>
+            <label className="flex min-h-11 items-center gap-3 text-sm text-fg">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border"
+                checked={mezcla}
+                onChange={(e) => setMezcla(e.target.checked)}
+              />
+              Mezcla de variedades en este lote
+            </label>
+            {mezcla ? (
+              <Field label="Nota de mezcla" hint="opcional">
+                <Input
+                  value={variedadNota}
+                  onChange={(e) => setVariedadNota(e.target.value)}
+                  placeholder="Ej. Castillo + Caturra ~60/40"
+                />
+              </Field>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Año de siembra" hint="aprox.">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={anioSiembra}
+                  onChange={(e) => setAnioSiembra(e.target.value)}
+                  placeholder="2021"
+                  min={1900}
+                  max={2100}
+                />
+              </Field>
+              <Field label="Edad aprox." hint="texto libre">
+                <Input
+                  value={edadApprox}
+                  onChange={(e) => setEdadApprox(e.target.value)}
+                  placeholder="Ej. 3 años · soca ~2"
+                />
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Densidad" hint="plantas/ha o marco">
+                <Input
+                  value={densidad}
+                  onChange={(e) => setDensidad(e.target.value)}
+                  placeholder="Ej. 5000 · o 1.5 × 1.5 m"
+                />
+              </Field>
+              <Field label="Conteo de plantas" hint="opcional · simple">
+                <DecimalInput
+                  value={plantasApprox}
+                  onValue={setPlantasApprox}
+                  decimals={0}
+                  placeholder="0"
+                />
+              </Field>
+            </div>
+            <Field label="Estado">
+              <Select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value as CultivoEstado)}
+              >
+                {CULTIVO_ESTADOS.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Sombra" hint="opcional">
+                <Select
+                  value={sombra}
+                  onChange={(e) => setSombra(e.target.value)}
+                >
+                  <option value="omit">Sin especificar</option>
+                  <option value="no">No (pleno sol)</option>
+                  <option value="si">Sí</option>
+                </Select>
+              </Field>
+              {sombra === "si" ? (
+                <Field label="Tipo de sombra" hint="opcional">
+                  <Input
+                    value={sombraTipo}
+                    onChange={(e) => setSombraTipo(e.target.value)}
+                    placeholder="Ej. guamo, plátano…"
+                  />
+                </Field>
+              ) : (
+                <div />
+              )}
+            </div>
+            {err ? (
+              <p className="text-sm text-danger" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit">
+                {filled ? "Actualizar cultivo" : "Guardar cultivo"}
+              </Button>
+              {savedFlash ? (
+                <span className="text-sm text-accent">Guardado</span>
+              ) : null}
+            </div>
+          </form>
+        </WriteGate>
       </Card>
     </div>
   );

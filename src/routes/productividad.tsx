@@ -7,6 +7,7 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { fmtKg, fmtMoney, fmtNum, fmtPct, fmtRatio } from "@/lib/format";
 import { harvestLots, lotNombre } from "@/lib/lots";
 import { farmStats } from "@/lib/stats";
+import { cultivoEstadoLabel, cultivoForLot, cultivoYieldComparable } from "@/lib/lot-ops";
 import { useFarm } from "@/lib/store";
 import { FORMULAS, STAGE_RETAIN, classifyFactor } from "@/lib/yield";
 
@@ -390,6 +391,10 @@ function Page() {
 
       <Card>
         <CardTitle>Cosecha por lote (kg/h)</CardTitle>
+        <CardHint>
+          Kg/h, kg/ha y $/kg solo cuando el cultivo está en producción. Levante
+          y zoca/renovación se etiquetan y no muestran totales engañosos.
+        </CardHint>
         <LotBarChart data={lotData} />
         <div className="mt-4">
           <Table>
@@ -407,21 +412,35 @@ function Page() {
               {harvestLots(farm.lots).map((L) => {
                 const o = S.byLot[L.code] ?? { kg: 0, cost: 0, hrs: 0, n: 0 };
                 const ha = L.areaHa;
+                const cul = cultivoForLot(farm.cultivos, L.code, {
+                  farmId: farm.farmId,
+                });
+                const comparable = cultivoYieldComparable(cul);
                 return (
                   <tr key={L.code}>
                     <Td>
-                      {L.code} {L.nombre}
+                      <div>
+                        {L.code} {L.nombre}
+                      </div>
+                      {cul ? (
+                        <div className="mt-0.5 text-xs text-subtle">
+                          {cultivoEstadoLabel(cul.estado)}
+                          {!comparable
+                            ? " · no comparable en rendimiento"
+                            : ""}
+                        </div>
+                      ) : null}
                     </Td>
                     <Td className="text-right tabular">{fmtNum(o.kg, 1)}</Td>
                     <Td className="text-right tabular">{fmtNum(o.hrs, 1)}</Td>
                     <Td className="text-right tabular">
-                      {o.hrs ? fmtNum(o.kg / o.hrs, 2) : "—"}
+                      {comparable && o.hrs ? fmtNum(o.kg / o.hrs, 2) : "—"}
                     </Td>
                     <Td className="text-right tabular">
-                      {ha ? fmtNum(o.kg / ha, 0) : "—"}
+                      {comparable && ha ? fmtNum(o.kg / ha, 0) : "—"}
                     </Td>
                     <Td className="text-right tabular">
-                      {o.kg ? fmtMoney(o.cost / o.kg) : "—"}
+                      {comparable && o.kg ? fmtMoney(o.cost / o.kg) : "—"}
                     </Td>
                   </tr>
                 );

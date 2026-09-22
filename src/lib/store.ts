@@ -23,6 +23,7 @@ import type {
   HarvestType,
   JournalEntry,
   Liquidation,
+  LotCultivo,
   LotLabor,
   LotNutrition,
   PayModel,
@@ -32,7 +33,7 @@ import type {
   Settings,
   WorkerRow,
 } from "./types";
-import { upsertById } from "./lot-ops";
+import { upsertById, upsertCultivoForLot } from "./lot-ops";
 import {
   computeSessionWorkers,
   computeWorker as computeWorkerPayroll,
@@ -69,6 +70,7 @@ export type FarmState = {
   lots: FarmLot[];
   labores: LotLabor[];
   nutrition: LotNutrition[];
+  cultivos: LotCultivo[];
   setHydrated: (v: boolean) => void;
   updateSettings: (p: Partial<Settings>) => void;
   saveLot: (lot: FarmLot) => { ok: boolean; error?: string };
@@ -96,6 +98,7 @@ export type FarmState = {
   saveCost: (c: CostLine) => void;
   saveLabor: (l: LotLabor) => void;
   saveNutrition: (n: LotNutrition) => void;
+  saveCultivo: (c: LotCultivo) => void;
   saveJournal: (j: JournalEntry) => void;
   importBook: (data: unknown) => { ok: boolean; error?: string };
   exportBook: () => Record<string, unknown>;
@@ -227,6 +230,7 @@ export const useFarm = create<FarmState>()(
       lots: [],
       labores: [],
       nutrition: [],
+      cultivos: [],
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       saveLot: (lot) => {
@@ -509,6 +513,9 @@ export const useFarm = create<FarmState>()(
       saveNutrition: (row) => {
         set({ nutrition: upsertById(get().nutrition, row) });
       },
+      saveCultivo: (row) => {
+        set({ cultivos: upsertCultivoForLot(get().cultivos, row) });
+      },
       saveJournal: (j) => set({ journals: [j, ...get().journals] }),
       exportBook: () => ({
         v: 1,
@@ -524,6 +531,7 @@ export const useFarm = create<FarmState>()(
         lots: get().lots,
         labores: get().labores,
         nutrition: get().nutrition,
+        cultivos: get().cultivos,
       }),
       importBook: (data) => {
         if (!data || typeof data !== "object") {
@@ -548,6 +556,7 @@ export const useFarm = create<FarmState>()(
           lots: lotsFromImport(p.lots, get().lots),
           labores: Array.isArray(p.labores) ? p.labores : [],
           nutrition: Array.isArray(p.nutrition) ? p.nutrition : [],
+          cultivos: Array.isArray(p.cultivos) ? p.cultivos : [],
         });
         return { ok: true };
       },
@@ -591,6 +600,7 @@ export const useFarm = create<FarmState>()(
             lots: current.lots,
             labores: current.labores,
             nutrition: current.nutrition,
+            cultivos: current.cultivos,
           };
           writeFarmBookToStorage(current.farmId, slice);
         }
@@ -615,6 +625,7 @@ export const useFarm = create<FarmState>()(
             lots: mergeLotsFromPersist(loaded.lots, []),
             labores: (loaded.labores as FarmState["labores"]) ?? [],
             nutrition: (loaded.nutrition as FarmState["nutrition"]) ?? [],
+            cultivos: (loaded.cultivos as FarmState["cultivos"]) ?? [],
           });
         } else {
           const empty = createEmptyFarmBook(id);
@@ -630,6 +641,7 @@ export const useFarm = create<FarmState>()(
             lots: [],
             labores: [],
             nutrition: [],
+            cultivos: [],
           });
           writeFarmBookToStorage(id, {
             farmId: id,
@@ -643,6 +655,7 @@ export const useFarm = create<FarmState>()(
             lots: [],
             labores: [],
             nutrition: [],
+            cultivos: [],
           });
         }
         return { ok: true };
@@ -692,6 +705,9 @@ export const useFarm = create<FarmState>()(
           nutrition: Array.isArray(p.nutrition)
             ? p.nutrition
             : current.nutrition ?? [],
+          cultivos: Array.isArray(p.cultivos)
+            ? p.cultivos
+            : current.cultivos ?? [],
         };
       },
       partialize: (s) => ({
@@ -706,6 +722,7 @@ export const useFarm = create<FarmState>()(
         lots: s.lots,
         labores: s.labores,
         nutrition: s.nutrition,
+        cultivos: s.cultivos,
       }),
     },
   ),
