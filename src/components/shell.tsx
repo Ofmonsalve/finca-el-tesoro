@@ -1,17 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  BarChart3,
   BookOpen,
   ChevronsUpDown,
-  Factory,
+  Home,
   Landmark,
   LayoutDashboard,
-  Leaf,
   Menu,
-  Scale,
   Tractor,
   Users,
-  Wallet,
   X,
   Download,
   Upload,
@@ -25,34 +21,36 @@ import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { todayISO } from "@/lib/format";
-import { canExport, canRestore, roleLabel, FARM_ID } from "@/lib/roles";
+import { canExport, canRestore, roleLabel } from "@/lib/roles";
 import { areaActiva } from "@/lib/lots";
+import { setActivePersistFarmId } from "@/lib/farm-book-init";
+import { useFarmRegistry, displayFarmName } from "@/lib/farm-registry";
 import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
-const PRIMARY = [
-  { to: "/lotes", label: "Lotes", icon: Tractor },
-  { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/beneficio", label: "Grano", icon: Factory },
-  { to: "/", label: "Panel", icon: LayoutDashboard },
-] as const;
-
-/** Secondary farm tools — Settings-style, not an “office”. */
-const MORE = [
-  { to: "/historial", label: "Historial", icon: BookOpen },
-  { to: "/liquidacion", label: "Gente · pagos", icon: Users },
-  { to: "/equipo", label: "Gente · roles", icon: Users },
-  { to: "/productividad", label: "Productividad", icon: BarChart3 },
-  { to: "/costos", label: "Costos", icon: Wallet },
-  { to: "/ventas", label: "Ventas", icon: Scale },
+/**
+ * Holding → Finca → Lote (Omar: do NOT label holding as “Casa”).
+ * Holding home brand: Hoy / AURA.
+ * Holding: Hoy · Fincas · Dinero · Gente · Desempeño
+ * Finca: Estado · Lotes · Dinero · Gente · Desempeño
+ * No Panel / Libro / Productividad / Liquidación-as-top / Más / Beneficio top-nav.
+ * Final name lock still pending — avoid shipping “Casa”.
+ */
+const HOY_NAV = [
+  { to: "/", label: "Hoy", icon: Home },
+  { to: "/", label: "Fincas", icon: LayoutDashboard, hash: "fincas" },
   { to: "/finanzas", label: "Dinero", icon: Landmark },
-  { to: "/contabilidad", label: "Libro", icon: BookOpen },
+  { to: "/liquidacion", label: "Gente", icon: Users },
+  { to: "/historial", label: "Desempeño", icon: BookOpen },
 ] as const;
 
-function farmDisplayName(farmId: string): string {
-  if (farmId === FARM_ID || farmId === "finca-el-tesoro") return "El Tesoro";
-  return farmId.replace(/^finca-/, "").replace(/-/g, " ") || "Finca";
-}
+const FINCA_NAV = [
+  { to: "/estado", label: "Estado", icon: LayoutDashboard },
+  { to: "/lotes", label: "Lotes", icon: Tractor },
+  { to: "/finanzas", label: "Dinero", icon: Landmark },
+  { to: "/liquidacion", label: "Gente", icon: Users },
+  { to: "/historial", label: "Desempeño", icon: BookOpen },
+] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -65,10 +63,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { user, isPending } = useCurrentUserState();
 
   useEffect(() => {
-    const p = useFarm.persist.rehydrate();
-    void Promise.resolve(p).then(() => setHydrated(true));
-    const t = window.setTimeout(() => setHydrated(true), 400);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      if (!cancelled) setHydrated(true);
+    }, 800);
+    void (async () => {
+      try {
+        await Promise.resolve(useFarmRegistry.persist.rehydrate());
+        if (cancelled) return;
+        useFarmRegistry.getState().setHydrated(true);
+        const active = useFarmRegistry.getState().activeFarmId;
+        setActivePersistFarmId(active);
+        await Promise.resolve(useFarm.persist.rehydrate());
+        if (cancelled) return;
+        // Align in-memory farmId with registry if blob was empty/legacy.
+        const book = useFarm.getState();
+        if (book.farmId !== active) {
+          // Do not flush the default empty book over another farm's blob.
+          useFarm.getState().switchFarm(active, { flush: false });
+        }
+        setHydrated(true);
+      } catch {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [setHydrated]);
 
   if (pathname === "/login") {
@@ -155,21 +177,37 @@ function ShellApp({
     reader.readAsText(f);
   }
 
+  const atHoy = pathname === "/";
+  const levelLabel = atHoy ? "AURA" : "Finca";
+  const navItems = atHoy ? HOY_NAV : FINCA_NAV;
+
   function NavList(
-    items: readonly { to: string; label: string; icon: typeof Leaf }[],
+    items: readonly {
+      to: string;
+      label: string;
+      icon: typeof Home;
+      hash?: string;
+    }[],
   ) {
     return items.map((item) => {
-      const active =
-        item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+      const hash = "hash" in item ? item.hash : undefined;
+      // Hoy = holding home; Fincas = same path, scroll target (not forced active).
+      const isActive =
+        item.label === "Hoy"
+          ? pathname === "/"
+          : item.label === "Fincas"
+            ? false
+            : pathname === item.to || pathname.startsWith(`${item.to}/`);
       const Icon = item.icon;
       return (
         <Link
-          key={item.to}
+          key={`${item.label}-${item.to}-${hash ?? ""}`}
           to={item.to}
+          {...(hash ? { hash } : {})}
           onClick={() => setOpen(false)}
           className={cn(
             "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-            active
+            isActive
               ? "bg-elevated text-fg"
               : "text-muted hover:bg-elevated/60 hover:text-fg",
           )}
@@ -187,7 +225,7 @@ function ShellApp({
         <div>
           <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            Lotes de la finca
+            AURA · Hoy
           </div>
         </div>
         <Button
@@ -211,15 +249,24 @@ function ShellApp({
             <FarmChip ha={ha} ready={ready} role={role} />
           </div>
           <nav className="flex flex-col gap-0.5 p-3">
-            {NavList(PRIMARY)}
-            <div className="mt-4 px-3 pb-1 text-[10px] uppercase tracking-widest text-subtle">
-              Más
+            <div className="px-3 pb-1 text-[10px] uppercase tracking-widest text-subtle">
+              {levelLabel}
             </div>
-            {NavList(MORE)}
+            {NavList(navItems)}
+            {!atHoy ? (
+              <Link
+                to="/"
+                onClick={() => setOpen(false)}
+                className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-accent hover:bg-elevated/60"
+              >
+                <Home className="size-4 shrink-0" />
+                Volver a Hoy
+              </Link>
+            ) : null}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Primero la finca, luego el lote. El rol define quién registra y quién solo mira.
+              Hoy → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />
@@ -282,14 +329,80 @@ function FarmChip({
   role: ReturnType<typeof useFarmAccess>["role"];
 }) {
   const farmId = useFarm((s) => s.farmId);
+  const switchFarm = useFarm((s) => s.switchFarm);
+  const farms = useFarmRegistry((s) => s.farms);
+  const activeFarmId = useFarmRegistry((s) => s.activeFarmId);
+  const createFarm = useFarmRegistry((s) => s.createFarm);
+  const renameFarm = useFarmRegistry((s) => s.renameFarm);
+  const setActiveFarmId = useFarmRegistry((s) => s.setActiveFarmId);
   const [open, setOpen] = useState(false);
-  const name = farmDisplayName(farmId);
+  const [mode, setMode] = useState<"list" | "create" | "rename">("list");
+  const [draftName, setDraftName] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const name = displayFarmName(farmId, farms);
+
+  function resetPanel() {
+    setMode("list");
+    setDraftName("");
+    setNote(null);
+  }
+
+  function onSwitch(id: string) {
+    if (id === activeFarmId && id === farmId) {
+      setOpen(false);
+      resetPanel();
+      return;
+    }
+    const reg = setActiveFarmId(id);
+    if (!reg.ok) {
+      setNote(reg.error ?? "No se pudo cambiar.");
+      return;
+    }
+    const r = switchFarm(id);
+    if (!r.ok) {
+      setNote(r.error ?? "No se pudo abrir esa finca.");
+      return;
+    }
+    setOpen(false);
+    resetPanel();
+  }
+
+  function onCreate() {
+    const r = createFarm(draftName);
+    if (!r.ok || !r.farm) {
+      setNote(r.error ?? "No se pudo crear.");
+      return;
+    }
+    const sw = switchFarm(r.farm.id);
+    if (!sw.ok) {
+      setNote(sw.error ?? "Finca creada, pero no se abrió.");
+      return;
+    }
+    setOpen(false);
+    resetPanel();
+  }
+
+  function onRename() {
+    const r = renameFarm(activeFarmId, draftName);
+    if (!r.ok) {
+      setNote(r.error ?? "No se pudo renombrar.");
+      return;
+    }
+    setMode("list");
+    setDraftName("");
+    setNote("Nombre actualizado.");
+  }
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => {
+            if (v) resetPanel();
+            return !v;
+          });
+        }}
         className="w-full rounded-xl text-left transition-colors hover:bg-elevated/50"
         aria-expanded={open}
         aria-label="Cambiar finca"
@@ -312,16 +425,109 @@ function FarmChip({
       </button>
       {open ? (
         <div className="mt-3 overflow-hidden rounded-xl border border-border bg-elevated">
-          <div className="flex min-h-11 items-center justify-between px-3 text-sm">
-            <span className="text-fg">{name}</span>
-            <span className="text-[11px] uppercase tracking-wide text-accent">
-              Activa
-            </span>
-          </div>
-          <p className="border-t border-border px-3 py-3 text-xs leading-relaxed text-muted">
-            Cambiar finca: cada finca tiene sus propios lotes. Pronto podrá
-            elegir otra aquí; hoy esta sesión trabaja solo en {name}.
-          </p>
+          {mode === "list" ? (
+            <>
+              <ul className="max-h-56 overflow-y-auto py-1">
+                {farms.map((f) => {
+                  const active = f.id === activeFarmId;
+                  return (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSwitch(f.id)}
+                        className="flex min-h-11 w-full items-center justify-between px-3 text-left text-sm hover:bg-surface/80"
+                      >
+                        <span className="text-fg">{f.name}</span>
+                        {active ? (
+                          <span className="text-[11px] uppercase tracking-wide text-accent">
+                            Activa
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted">Abrir</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex flex-col gap-1 border-t border-border p-2">
+                <button
+                  type="button"
+                  className="min-h-10 rounded-md px-2 text-left text-sm text-accent hover:bg-surface/80"
+                  onClick={() => {
+                    setMode("create");
+                    setDraftName("");
+                    setNote(null);
+                  }}
+                >
+                  Nueva finca…
+                </button>
+                <button
+                  type="button"
+                  className="min-h-10 rounded-md px-2 text-left text-sm text-muted hover:bg-surface/80"
+                  onClick={() => {
+                    setMode("rename");
+                    setDraftName(name);
+                    setNote(null);
+                  }}
+                >
+                  Renombrar «{name}»
+                </button>
+              </div>
+              <p className="border-t border-border px-3 py-2 text-[11px] leading-relaxed text-muted">
+                Cada finca tiene sus propios lotes. Al cambiar, se guarda esta y
+                se abre la otra.
+              </p>
+            </>
+          ) : null}
+          {mode === "create" || mode === "rename" ? (
+            <div className="space-y-2 p-3">
+              <p className="text-xs text-muted">
+                {mode === "create"
+                  ? "Nombre de la finca nueva (arranca sin lotes)."
+                  : "Nuevo nombre para la finca activa."}
+              </p>
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder="Ej. La Esperanza"
+                className="min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-fg outline-none focus:border-accent"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (mode === "create") onCreate();
+                    else onRename();
+                  }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => (mode === "create" ? onCreate() : onRename())}
+                >
+                  {mode === "create" ? "Crear" : "Guardar"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMode("list");
+                    setDraftName("");
+                    setNote(null);
+                  }}
+                >
+                  Atrás
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {note ? (
+            <p className="border-t border-border px-3 py-2 text-xs text-accent">
+              {note}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

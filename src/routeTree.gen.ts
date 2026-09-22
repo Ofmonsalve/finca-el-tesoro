@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EstadoRouteImport } from './routes/estado'
 import { Route as BeneficioRouteImport } from './routes/beneficio'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as CosechaRouteImport } from './routes/cosecha'
@@ -28,6 +29,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EstadoRoute = EstadoRouteImport.update({
+  id: '/estado',
+  path: '/estado',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeneficioRoute = BeneficioRouteImport.update({
@@ -103,6 +109,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/estado': typeof EstadoRoute
   '/beneficio': typeof BeneficioRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/estado': typeof EstadoRoute
   '/beneficio': typeof BeneficioRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/estado': typeof EstadoRoute
   '/beneficio': typeof BeneficioRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cosecha': typeof CosechaRoute
@@ -157,6 +166,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+  | '/estado'
+    | '/estado'
+  | '/estado'
     | '/beneficio'
     | '/contabilidad'
     | '/cosecha'
@@ -174,6 +186,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+  | '/estado'
+    | '/estado'
+  | '/estado'
     | '/beneficio'
     | '/contabilidad'
     | '/cosecha'
@@ -191,6 +206,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+  | '/estado'
+    | '/estado'
+  | '/estado'
     | '/beneficio'
     | '/contabilidad'
     | '/cosecha'
@@ -209,6 +227,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EstadoRoute: typeof EstadoRoute
   BeneficioRoute: typeof BeneficioRoute
   ContabilidadRoute: typeof ContabilidadRoute
   CosechaRoute: typeof CosechaRoute
@@ -231,6 +250,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estado': {
+      id: '/estado'
+      path: '/estado'
+      fullPath: '/estado'
+      preLoaderRoute: typeof EstadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beneficio': {
@@ -346,6 +372,7 @@ const LotesRouteWithChildren = LotesRoute._addFileChildren(LotesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EstadoRoute: EstadoRoute,
   BeneficioRoute: BeneficioRoute,
   ContabilidadRoute: ContabilidadRoute,
   CosechaRoute: CosechaRoute,
