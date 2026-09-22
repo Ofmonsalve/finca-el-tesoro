@@ -25,6 +25,8 @@ export type EmptyFarmBook = {
   costs: [];
   journals: [];
   lots: FarmLot[];
+  labores: [];
+  nutrition: [];
 };
 
 export const EMPTY_SETTINGS: Settings = {
@@ -56,6 +58,8 @@ export function createEmptyFarmBook(farmId: string = FARM_ID): EmptyFarmBook {
     costs: [],
     journals: [],
     lots: [],
+    labores: [],
+    nutrition: [],
   };
 }
 
@@ -170,6 +174,9 @@ export type PersistedFarmBookSlice = {
   costs: unknown[];
   journals: unknown[];
   lots: FarmLot[];
+  /** Present from Labores/Nutrición slice onward; absent in legacy blobs. */
+  labores?: unknown[];
+  nutrition?: unknown[];
 };
 
 /**
@@ -234,6 +241,8 @@ export function readFarmBookFromStorage(
       costs: Array.isArray(s.costs) ? s.costs : [],
       journals: Array.isArray(s.journals) ? s.journals : [],
       lots: mergeLotsFromPersist(s.lots, []),
+      labores: Array.isArray(s.labores) ? s.labores : [],
+      nutrition: Array.isArray(s.nutrition) ? s.nutrition : [],
     };
   } catch {
     return null;

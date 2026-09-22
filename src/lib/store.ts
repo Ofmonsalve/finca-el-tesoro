@@ -23,6 +23,8 @@ import type {
   HarvestType,
   JournalEntry,
   Liquidation,
+  LotLabor,
+  LotNutrition,
   PayModel,
   ProcessBatch,
   ProcessEvent,
@@ -30,6 +32,7 @@ import type {
   Settings,
   WorkerRow,
 } from "./types";
+import { upsertById } from "./lot-ops";
 import {
   computeSessionWorkers,
   computeWorker as computeWorkerPayroll,
@@ -64,6 +67,8 @@ export type FarmState = {
   costs: CostLine[];
   journals: JournalEntry[];
   lots: FarmLot[];
+  labores: LotLabor[];
+  nutrition: LotNutrition[];
   setHydrated: (v: boolean) => void;
   updateSettings: (p: Partial<Settings>) => void;
   saveLot: (lot: FarmLot) => { ok: boolean; error?: string };
@@ -89,6 +94,8 @@ export type FarmState = {
   saveLiquidation: (l: Liquidation) => void;
   saveSale: (s: Sale) => { ok: boolean; error?: string };
   saveCost: (c: CostLine) => void;
+  saveLabor: (l: LotLabor) => void;
+  saveNutrition: (n: LotNutrition) => void;
   saveJournal: (j: JournalEntry) => void;
   importBook: (data: unknown) => { ok: boolean; error?: string };
   exportBook: () => Record<string, unknown>;
@@ -218,6 +225,8 @@ export const useFarm = create<FarmState>()(
       costs: [],
       journals: [],
       lots: [],
+      labores: [],
+      nutrition: [],
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       saveLot: (lot) => {
@@ -494,6 +503,12 @@ export const useFarm = create<FarmState>()(
           journals: [...get().journals, journalFromCost(c)],
         });
       },
+      saveLabor: (l) => {
+        set({ labores: upsertById(get().labores, l) });
+      },
+      saveNutrition: (row) => {
+        set({ nutrition: upsertById(get().nutrition, row) });
+      },
       saveJournal: (j) => set({ journals: [j, ...get().journals] }),
       exportBook: () => ({
         v: 1,
@@ -507,6 +522,8 @@ export const useFarm = create<FarmState>()(
         costs: get().costs,
         journals: get().journals,
         lots: get().lots,
+        labores: get().labores,
+        nutrition: get().nutrition,
       }),
       importBook: (data) => {
         if (!data || typeof data !== "object") {
@@ -529,6 +546,8 @@ export const useFarm = create<FarmState>()(
           costs: p.costs ?? [],
           journals: p.journals ?? [],
           lots: lotsFromImport(p.lots, get().lots),
+          labores: Array.isArray(p.labores) ? p.labores : [],
+          nutrition: Array.isArray(p.nutrition) ? p.nutrition : [],
         });
         return { ok: true };
       },
@@ -570,6 +589,8 @@ export const useFarm = create<FarmState>()(
             costs: current.costs,
             journals: current.journals,
             lots: current.lots,
+            labores: current.labores,
+            nutrition: current.nutrition,
           };
           writeFarmBookToStorage(current.farmId, slice);
         }
@@ -592,6 +613,8 @@ export const useFarm = create<FarmState>()(
             costs: (loaded.costs as FarmState["costs"]) ?? [],
             journals: (loaded.journals as FarmState["journals"]) ?? [],
             lots: mergeLotsFromPersist(loaded.lots, []),
+            labores: (loaded.labores as FarmState["labores"]) ?? [],
+            nutrition: (loaded.nutrition as FarmState["nutrition"]) ?? [],
           });
         } else {
           const empty = createEmptyFarmBook(id);
@@ -605,6 +628,8 @@ export const useFarm = create<FarmState>()(
             costs: [],
             journals: [],
             lots: [],
+            labores: [],
+            nutrition: [],
           });
           writeFarmBookToStorage(id, {
             farmId: id,
@@ -616,6 +641,8 @@ export const useFarm = create<FarmState>()(
             costs: [],
             journals: [],
             lots: [],
+            labores: [],
+            nutrition: [],
           });
         }
         return { ok: true };
@@ -661,6 +688,10 @@ export const useFarm = create<FarmState>()(
             batchId: s.batchId ?? "",
           })),
           lots: mergeLotsFromPersist(p.lots, current.lots),
+          labores: Array.isArray(p.labores) ? p.labores : current.labores ?? [],
+          nutrition: Array.isArray(p.nutrition)
+            ? p.nutrition
+            : current.nutrition ?? [],
         };
       },
       partialize: (s) => ({
@@ -673,6 +704,8 @@ export const useFarm = create<FarmState>()(
         costs: s.costs,
         journals: s.journals,
         lots: s.lots,
+        labores: s.labores,
+        nutrition: s.nutrition,
       }),
     },
   ),

@@ -122,3 +122,65 @@ export type Settings = {
   factor: number;
   responsable: string;
 };
+
+/**
+ * Field work only (Labores face) — never fertilizer / abono.
+ * plateo, poda, deschupone, broca, sombra… (+ otra for misc field work).
+ */
+export type LaborTipo =
+  | "plateo"
+  | "poda"
+  | "deschupone"
+  | "broca"
+  | "sombra"
+  | "otra";
+
+/**
+ * Farm task logged against a lot.
+ * Always tagged farmId+lote. Optional jornal → talento/gente when set;
+ * without cost fields these rows do not roll into Pulso/Inteligencia.
+ */
+export type LotLabor = {
+  id: string;
+  farmId: string;
+  fecha: string;
+  lote: LotCode;
+  tipo: LaborTipo;
+  /** Who did or supervised the work. */
+  responsable: string;
+  notas: string;
+  /**
+   * Optional jornal / MO cost (COP). When > 0, tagged for talento/gente.
+   * Absent or 0 → do not roll into Pulso.
+   */
+  jornal?: number;
+};
+
+export type NutritionVia = "suelo" | "foliar";
+export type NutritionEstado = "planificada" | "hecha";
+export type NutritionUnidad = "kg" | "bultos";
+
+/**
+ * Soil / foliar application only (Nutrición face).
+ * Product + quantity/unit + date. Soil analysis is context (notas), not a model.
+ * Honesty: no Cenicafé science yet. Optional costoProducto → money out / $/kg
+ * when set; without it, do not roll into Pulso/Inteligencia.
+ */
+export type LotNutrition = {
+  id: string;
+  farmId: string;
+  fecha: string;
+  lote: LotCode;
+  via: NutritionVia;
+  producto: string;
+  cantidad: number;
+  unidad: NutritionUnidad;
+  estado: NutritionEstado;
+  /** Context only (e.g. soil analysis note) — not scientific advice. */
+  notas: string;
+  /**
+   * Optional product cost (COP). When > 0, tagged for money out / cost per kg.
+   * Absent or 0 → do not roll into Pulso.
+   */
+  costoProducto?: number;
+};
