@@ -1,15 +1,18 @@
 /**
- * Pure helpers for lot-scoped Labores & Nutrición records.
+ * Pure helpers for lot-scoped Labores, Nutrición & Cultivo records.
  * Keep side-effect free for node:test isolation coverage.
  *
  * Contract:
  * - Labores = field work only (not fertilizer)
  * - Nutrición = soil/foliar application only
- * - Rows tagged farmId+lote; list by date
+ * - Cultivo = one design per farmId+lote (title = lot name); no money to Pulso
+ * - Rows tagged farmId+lote; list by date (labores/nutrition)
  * - jornal / costoProducto optional — no cost tag → do not roll into Pulso
  */
 import type {
+  CultivoEstado,
   LaborTipo,
+  LotCultivo,
   LotLabor,
   LotNutrition,
   NutritionEstado,
@@ -133,4 +136,80 @@ export function laborHasTalentoCost(row: LotLabor): boolean {
 /** True when nutrition has product cost tagged for money out. */
 export function nutritionHasProductCost(row: LotNutrition): boolean {
   return typeof row.costoProducto === "number" && row.costoProducto > 0;
+}
+
+export const CULTIVO_ESTADOS: { id: CultivoEstado; label: string }[] = [
+  { id: "levante", label: "Levante" },
+  { id: "produccion", label: "Producción" },
+  { id: "zoca_renovacion", label: "Zoca / renovación" },
+];
+
+export function cultivoEstadoLabel(e: CultivoEstado): string {
+  return CULTIVO_ESTADOS.find((x) => x.id === e)?.label ?? e;
+}
+
+export function isCultivoEstado(v: unknown): v is CultivoEstado {
+  return v === "levante" || v === "produccion" || v === "zoca_renovacion";
+}
+
+/**
+ * Crop design for one lot (and optional farmId). At most one row.
+ * Isolation: never mixes other lots / farms.
+ */
+export function cultivoForLot(
+  items: LotCultivo[] | undefined | null,
+  lote: string,
+  opts?: { farmId?: string },
+): LotCultivo | null {
+  if (!Array.isArray(items) || !lote) return null;
+  const farmId = opts?.farmId;
+  const found = items.find(
+    (x) =>
+      x &&
+      x.lote === lote &&
+      (farmId == null || farmId === "" || x.farmId === farmId),
+  );
+  return found ?? null;
+}
+
+/**
+ * Upsert crop design keyed by farmId+lote (one design per lot).
+ * Keeps id of existing row when replacing; otherwise uses row.id.
+ */
+export function upsertCultivoForLot(
+  list: LotCultivo[],
+  row: LotCultivo,
+): LotCultivo[] {
+  const i = list.findIndex(
+    (x) => x.farmId === row.farmId && x.lote === row.lote,
+  );
+  if (i >= 0) {
+    const merged = { ...row, id: list[i].id };
+    return list.map((x, k) => (k === i ? merged : x));
+  }
+  return [row, ...list];
+}
+
+/** True when design has meaningful crop fields filled. */
+export function hasCultivoDesign(row: LotCultivo | null | undefined): boolean {
+  if (!row) return false;
+  return Boolean(
+    (row.variedad && row.variedad.trim()) ||
+      (row.densidad && row.densidad.trim()) ||
+      (row.plantasApprox != null && row.plantasApprox > 0) ||
+      row.anioSiembra != null ||
+      (row.edadApprox && row.edadApprox.trim()) ||
+      row.sombra != null ||
+      (row.variedadNota && row.variedadNota.trim()),
+  );
+}
+
+/**
+ * Yield/cost comparisons are misleading for levante / zoca-renovación.
+ * Prefer label or hide totals for those stages.
+ */
+export function cultivoYieldComparable(
+  row: LotCultivo | null | undefined,
+): boolean {
+  return row?.estado === "produccion";
 }

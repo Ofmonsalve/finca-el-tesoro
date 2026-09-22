@@ -6,6 +6,7 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { buildConsolidado, rollupFarmBook } from "@/lib/farm-consolidado";
 import { displayFarmName, useFarmRegistry } from "@/lib/farm-registry";
 import { fmtKg, fmtMoney, fmtNum, fmtPct } from "@/lib/format";
+import { cultivoEstadoLabel, cultivoForLot, cultivoYieldComparable } from "@/lib/lot-ops";
 import { lotNombre } from "@/lib/lots";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
@@ -330,7 +331,8 @@ function Page() {
         <CardTitle>Margen por lote · {name}</CardTitle>
         <CardHint>
           Margen = ingreso del lote − costo asignado. Sin mezclar cereza con
-          pergamino.
+          pergamino. Levante y zoca/renovación se etiquetan; $/kg y margen %
+          solo en producción (evitar totales engañosos).
         </CardHint>
         <div className="mt-4 overflow-x-auto">
           <Table>
@@ -349,35 +351,51 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {S.pnl.map((r) => (
-                <tr key={r.code}>
-                  <Td>
-                    {r.code}{" "}
-                    <span className="text-muted">
-                      {lotNombre(farm.lots, r.code)}
-                    </span>
-                  </Td>
-                  <Td className="text-right tabular">{fmtNum(r.kg, 1)}</Td>
-                  <Td className="text-right tabular">{fmtMoney(r.costo)}</Td>
-                  <Td className="text-right tabular">{fmtMoney(r.ingDir)}</Td>
-                  <Td className="text-right tabular">{fmtMoney(r.ingPr)}</Td>
-                  <Td className="text-right tabular">{fmtMoney(r.ing)}</Td>
-                  <Td
-                    className={`text-right tabular ${r.margen < 0 ? "text-danger" : ""}`}
-                  >
-                    {fmtMoney(r.margen)}
-                  </Td>
-                  <Td className="text-right tabular">
-                    {r.margenPct != null ? fmtPct(r.margenPct) : "—"}
-                  </Td>
-                  <Td className="text-right tabular">
-                    {r.kg ? fmtMoney(r.margenKg) : "—"}
-                  </Td>
-                  <Td className="text-right tabular">
-                    {r.kg ? fmtMoney(r.margenCarga) : "—"}
-                  </Td>
-                </tr>
-              ))}
+              {S.pnl.map((r) => {
+                const cul = cultivoForLot(farm.cultivos, r.code, {
+                  farmId: farm.farmId,
+                });
+                const comparable = cultivoYieldComparable(cul);
+                return (
+                  <tr key={r.code}>
+                    <Td>
+                      <div>
+                        {r.code}{" "}
+                        <span className="text-muted">
+                          {lotNombre(farm.lots, r.code)}
+                        </span>
+                      </div>
+                      {cul ? (
+                        <div className="mt-0.5 text-xs text-subtle">
+                          {cultivoEstadoLabel(cul.estado)}
+                          {!comparable ? " · no comparable" : ""}
+                        </div>
+                      ) : null}
+                    </Td>
+                    <Td className="text-right tabular">{fmtNum(r.kg, 1)}</Td>
+                    <Td className="text-right tabular">{fmtMoney(r.costo)}</Td>
+                    <Td className="text-right tabular">{fmtMoney(r.ingDir)}</Td>
+                    <Td className="text-right tabular">{fmtMoney(r.ingPr)}</Td>
+                    <Td className="text-right tabular">{fmtMoney(r.ing)}</Td>
+                    <Td
+                      className={`text-right tabular ${r.margen < 0 ? "text-danger" : ""}`}
+                    >
+                      {comparable ? fmtMoney(r.margen) : "—"}
+                    </Td>
+                    <Td className="text-right tabular">
+                      {comparable && r.margenPct != null
+                        ? fmtPct(r.margenPct)
+                        : "—"}
+                    </Td>
+                    <Td className="text-right tabular">
+                      {comparable && r.kg ? fmtMoney(r.margenKg) : "—"}
+                    </Td>
+                    <Td className="text-right tabular">
+                      {comparable && r.kg ? fmtMoney(r.margenCarga) : "—"}
+                    </Td>
+                  </tr>
+                );
+              })}
               <tr>
                 <Td>Finca · {name}</Td>
                 <Td className="text-right tabular">{fmtNum(S.kg, 1)}</Td>

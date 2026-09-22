@@ -26,6 +26,7 @@ describe("createEmptyFarmBook", () => {
     assert.deepEqual(book.journals, []);
     assert.deepEqual(book.labores, []);
     assert.deepEqual(book.nutrition, []);
+    assert.deepEqual(book.cultivos, []);
     assert.equal(book.settings.factor, 6);
   });
 

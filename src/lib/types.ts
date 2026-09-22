@@ -184,3 +184,48 @@ export type LotNutrition = {
    */
   costoProducto?: number;
 };
+
+/**
+ * Agronomic stage of the lot (Cultivo face).
+ * Not harvest status; not a money signal for Pulso/Inteligencia.
+ */
+export type CultivoEstado =
+  | "levante"
+  | "produccion"
+  | "zoca_renovacion";
+
+/**
+ * Crop design for one lot (Cultivo face) — LOCKED contract.
+ * Single clean card: variedad (+ mix note), year/age, density or tree count,
+ * estado, optional sombra. Title = lot NAME.
+ * Does NOT mix labores / nutrición / harvest kg.
+ * Does NOT feed money into Pulso/Inteligencia.
+ */
+export type LotCultivo = {
+  id: string;
+  farmId: string;
+  lote: LotCode;
+  /** Lot name at save time (readback title). */
+  title: string;
+  /** Variety name(s). If mix, set mezcla and/or note in variedadNota. */
+  variedad: string;
+  /** True when more than one variety on the lot. */
+  mezcla?: boolean;
+  /** Short note when mezcla (e.g. "Castillo + Caturra ~60/40"). */
+  variedadNota?: string;
+  /** Planting year (approx), e.g. 2021. */
+  anioSiembra?: number;
+  /** Approx age free text, e.g. "3 años" or "~2 desde zoca". */
+  edadApprox?: string;
+  /** Density free text: plantas/ha or marco (e.g. "5000" or "1.5 × 1.5 m"). */
+  densidad?: string;
+  /** Optional simple tree/plant count — not a plant-by-plant map. */
+  plantasApprox?: number;
+  /** Agronomic stage: levante | producción | zoca/renovación. */
+  estado: CultivoEstado;
+  /** Optional shade: false = pleno sol / no shade. */
+  sombra?: boolean;
+  /** Shade type when sombra is true (e.g. "guamo", "plátano"). */
+  sombraTipo?: string;
+  updatedAt: string;
+};
