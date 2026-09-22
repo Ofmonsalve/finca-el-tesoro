@@ -421,7 +421,7 @@ export function HarvestForm({ editId, initialLote }: { editId?: string; initialL
                 to="/beneficio"
                 search={lastBatch ? { batch: lastBatch } : { batch: undefined }}
               >
-                Seguir el grano (tolva → … → venta)
+                Ir a Grano / beneficio
               </Link>
             </Button>
           </div>
@@ -800,7 +800,7 @@ export function HarvestForm({ editId, initialLote }: { editId?: string; initialL
           </ul>
         ) : (
           <p className="mt-3 text-sm text-muted">
-            Todavía no hay café de hoy en beneficio. Guarde la sesión y el lote
+            Todavía no hay café de hoy en Grano / beneficio. Guarde la sesión y el lote
             aparece aquí, ya en tolva.
           </p>
         )}
