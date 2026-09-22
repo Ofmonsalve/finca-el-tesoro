@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Field, Textarea } from "@/components/ui/input";
 import { DecimalInput } from "@/components/ui/fields";
-import { fmtDate, fmtKg, fmtNum, fmtPct, fmtRatio, n } from "@/lib/format";
+import { fmtDate, fmtKg, fmtNum, fmtPct, fmtRatio } from "@/lib/format";
 import { lotNombre } from "@/lib/lots";
 import {
   PROCESS_STAGES,
@@ -20,6 +20,10 @@ import { useFarm } from "@/lib/store";
 import type { ProcessBatch } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { batchYield, expectedAt } from "@/lib/yield";
+import {
+  resolveStageKgOut,
+  stageRequiresExplicitKg,
+} from "@/lib/beneficio-weigh";
 import { useFarmAccess } from "@/components/farm-access";
 import { canWrite } from "@/lib/roles";
 
@@ -155,13 +159,14 @@ function Page() {
             <BatchBoard
               batch={batch}
               responsable={settings.responsable}
-              onAdvance={(stage, skipped, kgOut, notas, responsable) =>
+              onAdvance={(stage, skipped, kgOutRaw, notas, responsable, estimated) =>
                 completeStage(batch.id, {
                   stage,
                   skipped,
-                  kgOut,
+                  kgOutRaw,
                   notas,
                   responsable,
+                  estimated,
                 })
               }
               onUndo={() => undoStage(batch.id)}
@@ -234,10 +239,11 @@ function BatchBoard({
   onAdvance: (
     stage: StageId,
     skipped: boolean,
-    kgOut: number,
+    kgOutRaw: string,
     notas: string,
     responsable: string,
-  ) => void;
+    estimated?: boolean,
+  ) => { ok: boolean; error?: string; warning?: string };
   onUndo: () => void;
 }) {
   const y = batchYield(batch);
@@ -246,13 +252,24 @@ function BatchBoard({
   const writable = canWrite(role);
   const done = batch.events.map((e) => e.stage);
   const next = nextPendingStage(done);
-  const [kgOut, setKgOut] = useState(String(batch.kgActual));
+  const weighRequired = next ? stageRequiresExplicitKg(next.id) : false;
+  const [kgOut, setKgOut] = useState(() =>
+    next && stageRequiresExplicitKg(next.id) ? "" : String(batch.kgActual),
+  );
   const [notas, setNotas] = useState("");
   const [resp, setResp] = useState(responsable);
+  const [estimated, setEstimated] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formWarn, setFormWarn] = useState<string | null>(null);
   useEffect(() => {
-    setKgOut(String(batch.kgActual));
+    const nNext = nextPendingStage(batch.events.map((e) => e.stage));
+    const req = nNext ? stageRequiresExplicitKg(nNext.id) : false;
+    setKgOut(req ? "" : String(batch.kgActual));
     setNotas("");
-  }, [batch.id, batch.kgActual]);
+    setEstimated(false);
+    setFormError(null);
+    setFormWarn(null);
+  }, [batch.id, batch.kgActual, batch.events]);
   const evBy = useMemo(() => {
     const m = new Map(batch.events.map((e) => [e.stage, e]));
     return m;
@@ -340,7 +357,10 @@ function BatchBoard({
                 {ev?.skipped ? (
                   <Badge>Omitida</Badge>
                 ) : ev ? (
-                  <Badge tone="ok">Hecha</Badge>
+                  <>
+                    <Badge tone="ok">Hecha</Badge>
+                    {ev.estimated ? <Badge tone="warn">Estimado</Badge> : null}
+                  </>
                 ) : isNext ? (
                   <Badge tone="accent">En curso</Badge>
                 ) : (
@@ -380,13 +400,22 @@ function BatchBoard({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Field
               label="Kg de salida"
-              hint={`esperado ${fmtKg(expectedAt(batch.kgCereza, next.id, batch.factor))}`}
+              hint={
+                weighRequired
+                  ? `obligatorio · esperado ${fmtKg(expectedAt(batch.kgCereza, next.id, batch.factor))}`
+                  : `esperado ${fmtKg(expectedAt(batch.kgCereza, next.id, batch.factor))}`
+              }
             >
               <DecimalInput
                 value={kgOut}
-                onValue={setKgOut}
+                onValue={(v) => {
+                  setKgOut(v);
+                  setEstimated(false);
+                  setFormError(null);
+                }}
                 decimals={1}
-                placeholder="0,0"
+                placeholder={weighRequired ? "Pese e indique kg" : "0,0"}
+                disabled={estimated}
               />
             </Field>
             <Field label="Responsable" hint="texto">
@@ -396,6 +425,30 @@ function BatchBoard({
                 onChange={(e) => setResp(e.target.value)}
               />
             </Field>
+            {weighRequired ? (
+              <label className="flex items-start gap-2 text-sm text-muted sm:col-span-2">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={estimated}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setEstimated(on);
+                    setFormError(null);
+                    if (on) {
+                      const exp = expectedAt(batch.kgCereza, next.id, batch.factor);
+                      setKgOut(String(Math.round(exp * 10) / 10));
+                    } else {
+                      setKgOut("");
+                    }
+                  }}
+                />
+                <span>
+                  Usar kg estimado del plan (sin báscula). Quedará marcado como{" "}
+                  <b className="text-fg">estimado</b>, no como pesaje real.
+                </span>
+              </label>
+            ) : null}
             <div className="sm:col-span-2">
               <Field label="Notas de la etapa" hint="texto">
                 <Textarea
@@ -406,12 +459,53 @@ function BatchBoard({
               </Field>
             </div>
           </div>
+          {formError ? (
+            <p className="mt-3 text-sm text-warn" role="alert">
+              {formError}
+            </p>
+          ) : null}
+          {formWarn ? (
+            <p className="mt-3 text-sm text-accent" role="status">
+              {formWarn}
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                onAdvance(next.id, false, n(kgOut) || batch.kgActual, notas, resp);
+                setFormError(null);
+                setFormWarn(null);
+                const preview = resolveStageKgOut({
+                  stage: next.id,
+                  skipped: false,
+                  kgOutRaw: kgOut,
+                  kgCereza: batch.kgCereza,
+                  kgActual: batch.kgActual,
+                  factor: batch.factor,
+                  estimated,
+                });
+                if (!preview.ok) {
+                  setFormError(preview.message);
+                  return;
+                }
+                const res = onAdvance(
+                  next.id,
+                  false,
+                  kgOut,
+                  notas,
+                  resp,
+                  estimated,
+                );
+                if (!res.ok) {
+                  setFormError(res.error ?? "No se pudo registrar la etapa.");
+                  return;
+                }
+                if (res.warning) setFormWarn(res.warning);
+                else if (preview.deviationWarn && preview.message) {
+                  setFormWarn(preview.message);
+                }
                 setNotas("");
-                setKgOut(String(n(kgOut) || batch.kgActual));
+                setEstimated(false);
+                // next stage reset happens via events effect
               }}
             >
               <Check className="size-4" /> Registrar etapa
@@ -420,8 +514,22 @@ function BatchBoard({
               <Button
                 variant="outline"
                 onClick={() => {
-                  onAdvance(next.id, true, batch.kgActual, notas || "Omitida", resp);
+                  setFormError(null);
+                  setFormWarn(null);
+                  const res = onAdvance(
+                    next.id,
+                    true,
+                    "",
+                    notas || "Omitida",
+                    resp,
+                    false,
+                  );
+                  if (!res.ok) {
+                    setFormError(res.error ?? "No se pudo omitir la etapa.");
+                    return;
+                  }
                   setNotas("");
+                  setEstimated(false);
                 }}
               >
                 <Ban className="size-4" /> Omitir y seguir

@@ -37,12 +37,14 @@ export function DecimalInput({
   decimals = 1,
   className,
   placeholder,
+  disabled,
 }: {
   value: string;
   onValue: (raw: string) => void;
   decimals?: number;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [focus, setFocus] = React.useState(false);
   const shown =
@@ -54,6 +56,7 @@ export function DecimalInput({
       autoComplete="off"
       value={shown}
       placeholder={placeholder}
+      disabled={disabled}
       onFocus={() => setFocus(true)}
       onBlur={() => {
         setFocus(false);

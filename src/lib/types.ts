@@ -47,6 +47,8 @@ export type ProcessEvent = {
   kgOut: number;
   notas: string;
   responsable: string;
+  /** True when kgOut came from plan (expectedAt), not a scale reading. */
+  estimated?: boolean;
 };
 
 export type ProcessBatch = {

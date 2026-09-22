@@ -23,6 +23,7 @@ import {
   jornalClaimedOnDate,
   sessionDay,
 } from "./payroll";
+import { resolveStageKgOut } from "./beneficio-weigh";
 
 export {
   aggregateWorkerEarnings,
@@ -60,11 +61,13 @@ export type FarmState = {
     payload: {
       stage: StageId;
       skipped: boolean;
-      kgOut: number;
+      /** Raw kg text from the form; empty must not fall back on weigh stages. */
+      kgOutRaw: string;
       notas: string;
       responsable: string;
+      estimated?: boolean;
     },
-  ) => void;
+  ) => { ok: boolean; error?: string; warning?: string };
   saveLiquidation: (l: Liquidation) => void;
   saveSale: (s: Sale) => { ok: boolean; error?: string };
   saveCost: (c: CostLine) => void;
@@ -334,6 +337,32 @@ export const useFarm = create<FarmState>()(
         return null;
       },
       completeStage: (batchId, payload) => {
+        const batch = get().batches.find((b) => b.id === batchId);
+        if (!batch) return { ok: false, error: "Lote de beneficio no encontrado." };
+
+        const resolved = resolveStageKgOut({
+          stage: payload.stage,
+          skipped: payload.skipped,
+          kgOutRaw: payload.kgOutRaw,
+          kgCereza: batch.kgCereza,
+          kgActual: batch.kgActual,
+          factor: batch.factor,
+          estimated: payload.estimated,
+        });
+        if (!resolved.ok) {
+          return { ok: false, error: resolved.message };
+        }
+
+        let notas = payload.notas;
+        if (resolved.estimated) {
+          const tag = "estimado=plan";
+          notas = notas ? `${notas} · ${tag}` : tag;
+        }
+        if (resolved.deviationWarn && resolved.message) {
+          const tag = `alerta-desviación ${resolved.deviationPct}%`;
+          notas = notas ? `${notas} · ${tag}` : tag;
+        }
+
         const batches = get().batches.map((b) => {
           if (b.id !== batchId) return b;
           const ev: ProcessEvent = {
@@ -342,9 +371,10 @@ export const useFarm = create<FarmState>()(
             skipped: payload.skipped,
             at: new Date().toISOString(),
             kgIn: b.kgActual,
-            kgOut: payload.skipped ? b.kgActual : payload.kgOut,
-            notas: payload.notas,
+            kgOut: resolved.kgOut,
+            notas,
             responsable: payload.responsable,
+            estimated: resolved.estimated || undefined,
           };
           return {
             ...b,
@@ -353,6 +383,10 @@ export const useFarm = create<FarmState>()(
           };
         });
         set({ batches });
+        return {
+          ok: true,
+          warning: resolved.deviationWarn ? resolved.message : undefined,
+        };
       },
       undoStage: (batchId) => {
         set({
