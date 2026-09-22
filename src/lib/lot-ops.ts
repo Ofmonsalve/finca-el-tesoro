@@ -6,6 +6,7 @@
  * - Labores = field work only (not fertilizer)
  * - Nutrición = soil/foliar application only
  * - Cultivo = one design per farmId+lote (title = lot name); no money to Pulso
+ * - Plantas = stand list per farmId+lote (foundation for later map; not GIS)
  * - Rows tagged farmId+lote; list by date (labores/nutrition)
  * - jornal / costoProducto optional — no cost tag → do not roll into Pulso
  */
@@ -15,9 +16,11 @@ import type {
   LotCultivo,
   LotLabor,
   LotNutrition,
+  LotPlant,
   NutritionEstado,
   NutritionUnidad,
   NutritionVia,
+  PlantEstado,
 } from "./types";
 
 export const LABOR_TIPOS: { id: LaborTipo; label: string }[] = [
@@ -212,4 +215,117 @@ export function cultivoYieldComparable(
   row: LotCultivo | null | undefined,
 ): boolean {
   return row?.estado === "produccion";
+}
+
+/* ── Plants (stand list · Cultivo foundation) ─────────────────────────── */
+
+export const PLANT_ESTADOS: { id: PlantEstado; label: string }[] = [
+  { id: "viva", label: "Viva" },
+  { id: "zoca", label: "Zoca" },
+  { id: "muerta", label: "Muerta" },
+];
+
+export function plantEstadoLabel(e: PlantEstado): string {
+  return PLANT_ESTADOS.find((x) => x.id === e)?.label ?? e;
+}
+
+export function isPlantEstado(v: unknown): v is PlantEstado {
+  return v === "viva" || v === "zoca" || v === "muerta";
+}
+
+/**
+ * Plants for one lot (and optional farmId). Sorted by surco, then position, then code/id.
+ * Isolation: never mixes other lots / farms.
+ */
+export function plantsForLot(
+  items: LotPlant[] | undefined | null,
+  lote: string,
+  opts?: { farmId?: string },
+): LotPlant[] {
+  if (!Array.isArray(items) || !lote) return [];
+  const farmId = opts?.farmId;
+  return items
+    .filter(
+      (x) =>
+        x &&
+        x.lote === lote &&
+        (farmId == null || farmId === "" || x.farmId === farmId),
+    )
+    .slice()
+    .sort(comparePlants);
+}
+
+function comparePlants(a: LotPlant, b: LotPlant): number {
+  const sa = a.surco ?? Number.POSITIVE_INFINITY;
+  const sb = b.surco ?? Number.POSITIVE_INFINITY;
+  if (sa !== sb) return sa - sb;
+  const pa = a.position ?? Number.POSITIVE_INFINITY;
+  const pb = b.position ?? Number.POSITIVE_INFINITY;
+  if (pa !== pb) return pa - pb;
+  const ca = (a.code || a.id).localeCompare(b.code || b.id, "es");
+  return ca;
+}
+
+/** Group plants by surco (null/undefined → "Sin surco"). Order preserved from sorted list. */
+export function groupPlantsBySurco(
+  plants: LotPlant[],
+): { surco: number | null; label: string; plants: LotPlant[] }[] {
+  const map = new Map<string, { surco: number | null; plants: LotPlant[] }>();
+  const order: string[] = [];
+  for (const p of plants) {
+    const key = p.surco == null ? "__none__" : String(p.surco);
+    if (!map.has(key)) {
+      map.set(key, { surco: p.surco ?? null, plants: [] });
+      order.push(key);
+    }
+    map.get(key)!.plants.push(p);
+  }
+  return order.map((k) => {
+    const g = map.get(k)!;
+    return {
+      surco: g.surco,
+      label: g.surco == null ? "Sin surco" : `Surco ${g.surco}`,
+      plants: g.plants,
+    };
+  });
+}
+
+/** Count plants that still occupy the stand (viva + zoca). */
+export function plantStandCount(plants: LotPlant[]): number {
+  return plants.filter((p) => p.estado === "viva" || p.estado === "zoca").length;
+}
+
+/**
+ * Build N plants for one surco with sequential positions starting at `fromPosition`.
+ * Defaults variedad/estado from opts.
+ */
+export function buildPlantRow(opts: {
+  farmId: string;
+  lote: string;
+  surco: number;
+  count: number;
+  variedad: string;
+  estado?: PlantEstado;
+  plantedYear?: number;
+  fromPosition?: number;
+  idFactory: () => string;
+}): LotPlant[] {
+  const n = Math.max(0, Math.floor(opts.count));
+  const from = opts.fromPosition ?? 1;
+  const estado = opts.estado ?? "viva";
+  const out: LotPlant[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const row: LotPlant = {
+      id: opts.idFactory(),
+      farmId: opts.farmId,
+      lote: opts.lote,
+      surco: opts.surco,
+      position: from + i,
+      variedad: opts.variedad,
+      estado,
+    };
+    if (opts.plantedYear != null) row.plantedYear = opts.plantedYear;
+    out.push(row);
+  }
+  return out;
 }

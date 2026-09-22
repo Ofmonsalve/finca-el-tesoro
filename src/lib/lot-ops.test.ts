@@ -13,8 +13,13 @@ import {
   cultivoEstadoLabel,
   hasCultivoDesign,
   cultivoYieldComparable,
+  plantsForLot,
+  groupPlantsBySurco,
+  plantStandCount,
+  buildPlantRow,
+  plantEstadoLabel,
 } from "./lot-ops.ts";
-import type { LotCultivo, LotLabor, LotNutrition } from "./types.ts";
+import type { LotCultivo, LotLabor, LotNutrition, LotPlant } from "./types.ts";
 import {
   createEmptyFarmBook,
   readFarmBookFromStorage,
@@ -456,6 +461,176 @@ describe("farm book persistence of cultivos", () => {
       const loadedB = readFarmBookFromStorage(farmB);
       assert.ok(loadedB);
       assert.deepEqual(loadedB!.cultivos, []);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: prev,
+      });
+    }
+  });
+});
+
+
+function plant(
+  partial: Partial<LotPlant> & { id: string; lote: string; farmId?: string },
+): LotPlant {
+  return {
+    id: partial.id,
+    farmId: partial.farmId ?? "farm-a",
+    lote: partial.lote,
+    variedad: partial.variedad ?? "Castillo",
+    estado: partial.estado ?? "viva",
+    ...(partial.code != null ? { code: partial.code } : {}),
+    ...(partial.surco != null ? { surco: partial.surco } : {}),
+    ...(partial.position != null ? { position: partial.position } : {}),
+    ...(partial.plantedYear != null ? { plantedYear: partial.plantedYear } : {}),
+    ...(partial.notes != null ? { notes: partial.notes } : {}),
+  };
+}
+
+describe("plantsForLot isolation", () => {
+  it("lists only plants for the requested lot and farm", () => {
+    const all = [
+      plant({ id: "p1", lote: "L1", surco: 2, position: 1 }),
+      plant({ id: "p2", lote: "L2", surco: 1, position: 1 }),
+      plant({ id: "p3", lote: "L1", surco: 1, position: 2, estado: "zoca" }),
+      plant({
+        id: "p4",
+        lote: "L1",
+        farmId: "farm-b",
+        surco: 1,
+        position: 1,
+        estado: "muerta",
+      }),
+    ];
+    const l1 = plantsForLot(all, "L1", { farmId: "farm-a" });
+    assert.equal(l1.length, 2);
+    // sorted by surco then position
+    assert.deepEqual(
+      l1.map((x) => x.id),
+      ["p3", "p1"],
+    );
+    assert.equal(plantsForLot(all, "L2", { farmId: "farm-a" }).length, 1);
+    assert.deepEqual(plantsForLot(all, "L99", { farmId: "farm-a" }), []);
+    assert.equal(plantsForLot(all, "L1", { farmId: "farm-b" }).length, 1);
+  });
+
+  it("handles empty / null lists", () => {
+    assert.deepEqual(plantsForLot([], "L1"), []);
+    assert.deepEqual(plantsForLot(null, "L1"), []);
+    assert.deepEqual(plantsForLot(undefined, ""), []);
+  });
+});
+
+describe("groupPlantsBySurco + stand count", () => {
+  it("groups and counts viva/zoca only", () => {
+    const list = [
+      plant({ id: "a", lote: "L1", surco: 1, position: 1 }),
+      plant({ id: "b", lote: "L1", surco: 1, position: 2, estado: "muerta" }),
+      plant({ id: "c", lote: "L1", surco: 2, position: 1, estado: "zoca" }),
+      plant({ id: "d", lote: "L1", estado: "viva" }), // sin surco
+    ];
+    const sorted = plantsForLot(list, "L1", { farmId: "farm-a" });
+    const groups = groupPlantsBySurco(sorted);
+    assert.equal(groups.length, 3);
+    assert.equal(groups[0].label, "Surco 1");
+    assert.equal(groups[0].plants.length, 2);
+    assert.equal(groups[1].label, "Surco 2");
+    assert.equal(groups[2].label, "Sin surco");
+    assert.equal(plantStandCount(sorted), 3); // viva+zoca, not muerta
+    assert.equal(plantEstadoLabel("zoca"), "Zoca");
+  });
+});
+
+describe("buildPlantRow", () => {
+  it("creates N plants with sequential positions", () => {
+    let n = 0;
+    const rows = buildPlantRow({
+      farmId: "farm-a",
+      lote: "L1",
+      surco: 3,
+      count: 4,
+      variedad: "Caturra",
+      estado: "viva",
+      plantedYear: 2022,
+      fromPosition: 5,
+      idFactory: () => `id-${(n += 1)}`,
+    });
+    assert.equal(rows.length, 4);
+    assert.deepEqual(
+      rows.map((r) => r.position),
+      [5, 6, 7, 8],
+    );
+    assert.ok(rows.every((r) => r.surco === 3 && r.variedad === "Caturra"));
+    assert.equal(rows[0].plantedYear, 2022);
+  });
+});
+
+describe("plantas farm book isolation", () => {
+  it("persists plantas under farmId and does not leak across farms", () => {
+    const mem = new Map<string, string>();
+    const fake = {
+      getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        mem.set(k, v);
+      },
+      removeItem: (k: string) => {
+        mem.delete(k);
+      },
+    };
+    const prev = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: fake,
+    });
+    try {
+      const farmA = "farm-plant-a";
+      const farmB = "farm-plant-b";
+      setActivePersistFarmId(farmA);
+      const empty = createEmptyFarmBook(farmA);
+      const plantas = [
+        plant({ id: "x1", lote: "L1", farmId: farmA, surco: 1, position: 1 }),
+        plant({
+          id: "x2",
+          lote: "L1",
+          farmId: farmA,
+          surco: 1,
+          position: 2,
+          estado: "zoca",
+        }),
+      ];
+      writeFarmBookToStorage(farmA, {
+        farmId: farmA,
+        settings: empty.settings,
+        sessions: [],
+        batches: [],
+        liquidations: [],
+        sales: [],
+        costs: [],
+        journals: [],
+        lots: [],
+        labores: [],
+        nutrition: [],
+        cultivos: [],
+        personas: [],
+        plantas,
+      });
+      writeFarmBookToStorage(farmB, {
+        ...createEmptyFarmBook(farmB),
+      });
+
+      const loadedA = readFarmBookFromStorage(farmA);
+      assert.ok(loadedA);
+      assert.equal((loadedA!.plantas as LotPlant[]).length, 2);
+      const stand = plantsForLot(loadedA!.plantas as LotPlant[], "L1", {
+        farmId: farmA,
+      });
+      assert.equal(stand.length, 2);
+      assert.equal(plantStandCount(stand), 2);
+
+      const loadedB = readFarmBookFromStorage(farmB);
+      assert.ok(loadedB);
+      assert.deepEqual(loadedB!.plantas, []);
     } finally {
       Object.defineProperty(globalThis, "localStorage", {
         configurable: true,

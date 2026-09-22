@@ -17,14 +17,20 @@ import {
   NUTRITION_ESTADOS,
   NUTRITION_UNIDADES,
   NUTRITION_VIAS,
+  PLANT_ESTADOS,
+  buildPlantRow,
   cultivoEstadoLabel,
   cultivoForLot,
+  groupPlantsBySurco,
   hasCultivoDesign,
   laborTipoLabel,
   laboresForLot,
   nutritionEstadoLabel,
   nutritionViaLabel,
   nutritionForLot,
+  plantEstadoLabel,
+  plantStandCount,
+  plantsForLot,
 } from "@/lib/lot-ops";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
@@ -35,9 +41,11 @@ import type {
   LotCultivo,
   LotLabor,
   LotNutrition,
+  LotPlant,
   NutritionEstado,
   NutritionUnidad,
   NutritionVia,
+  PlantEstado,
 } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -91,6 +99,10 @@ function LotRoomPage() {
   const lotCultivo = useMemo(
     () => cultivoForLot(farm.cultivos, code, { farmId: farm.farmId }),
     [farm.cultivos, code, farm.farmId],
+  );
+  const lotPlantas = useMemo(
+    () => plantsForLot(farm.plantas, code, { farmId: farm.farmId }),
+    [farm.plantas, code, farm.farmId],
   );
 
   const kpi = S.byLot[code] ?? { kg: 0, cost: 0, hrs: 0, n: 0 };
@@ -209,6 +221,7 @@ function LotRoomPage() {
           farmId={farm.farmId}
           lotVariedad={lot.variedad}
           design={lotCultivo}
+          plants={lotPlantas}
         />
       ) : null}
     </div>
@@ -792,12 +805,14 @@ function CultivoFace({
   farmId,
   lotVariedad,
   design,
+  plants,
 }: {
   code: string;
   lotName: string;
   farmId: string;
   lotVariedad: string;
   design: LotCultivo | null;
+  plants: LotPlant[];
 }) {
   const saveCultivo = useFarm((s) => s.saveCultivo);
   const [variedad, setVariedad] = useState(
@@ -901,8 +916,8 @@ function CultivoFace({
       <Card>
         <CardTitle>{lotName}</CardTitle>
         <CardHint>
-          Título = nombre del lote. El mapa planta por planta es el próximo salto;
-          aquí solo un conteo simple si lo tiene.
+          Título = nombre del lote. Abajo: stand de plantas (lista por surco) —
+          base para un mapa visual después; aún no es GIS.
         </CardHint>
 
         {filled && design ? (
@@ -971,7 +986,11 @@ function CultivoFace({
               </div>
             </dl>
             <p className="mt-4 text-xs text-subtle">
-              Sin mapa planta a planta todavía — ese es el próximo salto.
+              Conteo de diseño
+              {plants.length
+                ? ` · stand listado: ${plantStandCount(plants)} vivas/zoca (${plants.length} en lista)`
+                : " · el stand detallado está abajo"}
+              .
             </p>
           </div>
         ) : (
@@ -982,7 +1001,7 @@ function CultivoFace({
               lote. Vacío honesto — sin cifras inventadas.
             </p>
             <p className="mx-auto mt-3 max-w-sm text-xs text-subtle">
-              El mapa planta por planta es el próximo salto.
+              El stand planta a planta (lista) está abajo — aún no hay mapa GIS.
             </p>
           </div>
         )}
@@ -1103,7 +1122,442 @@ function CultivoFace({
           </form>
         </WriteGate>
       </Card>
+
+      <PlantsStand
+        code={code}
+        lotName={lotName}
+        farmId={farmId}
+        defaultVariedad={variedad || lotVariedad || "Castillo"}
+        defaultYear={anioSiembra}
+        plants={plants}
+      />
     </div>
+  );
+}
+
+function PlantsStand({
+  code,
+  lotName,
+  farmId,
+  defaultVariedad,
+  defaultYear,
+  plants,
+}: {
+  code: string;
+  lotName: string;
+  farmId: string;
+  defaultVariedad: string;
+  defaultYear: string;
+  plants: LotPlant[];
+}) {
+  const savePlant = useFarm((s) => s.savePlant);
+  const savePlantsBatch = useFarm((s) => s.savePlantsBatch);
+  const [mode, setMode] = useState<"one" | "row">("one");
+  const [variedad, setVariedad] = useState(defaultVariedad);
+  const [estado, setEstado] = useState<PlantEstado>("viva");
+  const [surco, setSurco] = useState("1");
+  const [position, setPosition] = useState("1");
+  const [codeTag, setCodeTag] = useState("");
+  const [plantedYear, setPlantedYear] = useState(defaultYear);
+  const [notes, setNotes] = useState("");
+  const [rowCount, setRowCount] = useState("10");
+  const [err, setErr] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [groupBySurco, setGroupBySurco] = useState(true);
+
+  const groups = useMemo(
+    () => (groupBySurco ? groupPlantsBySurco(plants) : null),
+    [groupBySurco, plants],
+  );
+  const viva = plants.filter((p) => p.estado === "viva").length;
+  const zoca = plants.filter((p) => p.estado === "zoca").length;
+  const muerta = plants.filter((p) => p.estado === "muerta").length;
+
+  function parseOptionalYear(raw: string): number | undefined | "bad" {
+    const t = raw.trim();
+    if (!t) return undefined;
+    const y = Number(t);
+    if (!Number.isFinite(y) || y < 1900 || y > 2100) return "bad";
+    return Math.round(y);
+  }
+
+  function submitOne(e: FormEvent) {
+    e.preventDefault();
+    if (!variedad.trim()) {
+      setErr("Indique la variedad de la planta.");
+      return;
+    }
+    const sRaw = surco.trim();
+    let sNum: number | undefined;
+    if (sRaw) {
+      const s = Number(sRaw);
+      if (!Number.isFinite(s) || s < 1) {
+        setErr("Surco inválido (use 1, 2, …).");
+        return;
+      }
+      sNum = Math.round(s);
+    }
+    const pRaw = position.trim();
+    let pNum: number | undefined;
+    if (pRaw) {
+      const p = Number(pRaw);
+      if (!Number.isFinite(p) || p < 1) {
+        setErr("Posición inválida (use 1, 2, …).");
+        return;
+      }
+      pNum = Math.round(p);
+    }
+    const year = parseOptionalYear(plantedYear);
+    if (year === "bad") {
+      setErr("Año de siembra inválido.");
+      return;
+    }
+    setErr(null);
+    const row: LotPlant = {
+      id: uid("plt"),
+      farmId,
+      lote: code,
+      variedad: variedad.trim(),
+      estado,
+    };
+    if (codeTag.trim()) row.code = codeTag.trim();
+    if (sNum != null) row.surco = sNum;
+    if (pNum != null) row.position = pNum;
+    if (year != null) row.plantedYear = year;
+    if (notes.trim()) row.notes = notes.trim();
+    savePlant(row);
+    setNotes("");
+    setCodeTag("");
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  function submitRow(e: FormEvent) {
+    e.preventDefault();
+    if (!variedad.trim()) {
+      setErr("Indique la variedad para el surco.");
+      return;
+    }
+    const s = Number(surco.trim());
+    if (!Number.isFinite(s) || s < 1) {
+      setErr("Indique el número de surco (1, 2, …).");
+      return;
+    }
+    const count = Number(rowCount.trim());
+    if (!Number.isFinite(count) || count < 1 || count > 500) {
+      setErr("Cantidad de plantas: entre 1 y 500.");
+      return;
+    }
+    const year = parseOptionalYear(plantedYear);
+    if (year === "bad") {
+      setErr("Año de siembra inválido.");
+      return;
+    }
+    // Next position in this surco
+    const existing = plants.filter((p) => p.surco === Math.round(s));
+    const maxPos = existing.reduce(
+      (m, p) => Math.max(m, p.position ?? 0),
+      0,
+    );
+    setErr(null);
+    const rows = buildPlantRow({
+      farmId,
+      lote: code,
+      surco: Math.round(s),
+      count: Math.round(count),
+      variedad: variedad.trim(),
+      estado,
+      fromPosition: maxPos + 1,
+      idFactory: () => uid("plt"),
+      ...(year != null ? { plantedYear: year } : {}),
+    });
+    savePlantsBatch(rows);
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  function setPlantEstado(plant: LotPlant, next: PlantEstado) {
+    savePlant({ ...plant, estado: next });
+  }
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-subtle">
+          Stand de plantas · lista estructurada
+        </p>
+        <h2 className="mt-1 font-display text-3xl tracking-tight">{lotName}</h2>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          Primera versión usable: plantas por surco (o lista plana), estado
+          viva/zoca/muerta. Aún no es un mapa GIS — es la base para el mapa
+          visual después.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Kpi label="En lista" value={String(plants.length)} />
+        <Kpi label="Vivas" value={String(viva)} />
+        <Kpi label="Zoca" value={String(zoca)} />
+        <Kpi label="Muertas" value={String(muerta)} />
+      </div>
+
+      <Card>
+        <CardTitle>{lotName}</CardTitle>
+        <CardHint>
+          Agregar una planta o un surco completo de N. Persistido por
+          finca+lote.
+        </CardHint>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === "one" ? "default" : "outline"}
+            onClick={() => setMode("one")}
+          >
+            Una planta
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === "row" ? "default" : "outline"}
+            onClick={() => setMode("row")}
+          >
+            Surco de N
+          </Button>
+        </div>
+        <WriteGate>
+          <form
+            onSubmit={mode === "one" ? submitOne : submitRow}
+            className="mt-5 space-y-4"
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Variedad">
+                <Input
+                  value={variedad}
+                  onChange={(e) => setVariedad(e.target.value)}
+                  placeholder="Ej. Castillo"
+                  required
+                />
+              </Field>
+              <Field label="Estado">
+                <Select
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value as PlantEstado)}
+                >
+                  {PLANT_ESTADOS.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Surco" hint={mode === "row" ? "requerido" : "opc."}>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={surco}
+                  onChange={(e) => setSurco(e.target.value)}
+                  placeholder="1"
+                />
+              </Field>
+              {mode === "one" ? (
+                <Field label="Posición" hint="opc.">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="1"
+                  />
+                </Field>
+              ) : (
+                <Field label="Cantidad N">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={500}
+                    value={rowCount}
+                    onChange={(e) => setRowCount(e.target.value)}
+                    placeholder="10"
+                    required
+                  />
+                </Field>
+              )}
+              <Field label="Año siembra" hint="opc.">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={plantedYear}
+                  onChange={(e) => setPlantedYear(e.target.value)}
+                  placeholder="2021"
+                  min={1900}
+                  max={2100}
+                />
+              </Field>
+            </div>
+            {mode === "one" ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Código" hint="opc. · etiqueta">
+                  <Input
+                    value={codeTag}
+                    onChange={(e) => setCodeTag(e.target.value)}
+                    placeholder="Ej. S1-P3"
+                  />
+                </Field>
+                <Field label="Notas" hint="opc.">
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Observación breve"
+                  />
+                </Field>
+              </div>
+            ) : null}
+            {err ? (
+              <p className="text-sm text-danger" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit">
+                {mode === "one" ? "Agregar planta" : "Agregar surco"}
+              </Button>
+              {savedFlash ? (
+                <span className="text-sm text-accent">Guardado</span>
+              ) : null}
+            </div>
+          </form>
+        </WriteGate>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-6 py-5 md:px-7">
+          <div>
+            <CardTitle>Plantas de {lotName}</CardTitle>
+            <CardHint>
+              Lista estructurada · farm+lote · sin coordenadas GIS todavía.
+            </CardHint>
+          </div>
+          <label className="flex min-h-11 items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-border"
+              checked={groupBySurco}
+              onChange={(e) => setGroupBySurco(e.target.checked)}
+            />
+            Agrupar por surco
+          </label>
+        </div>
+        {!plants.length ? (
+          <div className="px-6 py-10 text-center md:px-7">
+            <p className="font-display text-2xl text-fg">Sin plantas aún</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              Aquí vive el stand del lote: una planta o un surco de N. No es un
+              mapa con GPS — es la lista que después se dibuja. Vacío honesto.
+            </p>
+          </div>
+        ) : groupBySurco && groups ? (
+          <div className="divide-y divide-border">
+            {groups.map((g) => (
+              <div key={g.label} className="px-6 py-4 md:px-7">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-subtle">
+                  {g.label} · {g.plants.length}
+                </p>
+                <div className="mt-3 overflow-x-auto">
+                  <PlantTable plants={g.plants} onEstado={setPlantEstado} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <PlantTable plants={plants} onEstado={setPlantEstado} />
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function PlantTable({
+  plants,
+  onEstado,
+}: {
+  plants: LotPlant[];
+  onEstado: (p: LotPlant, e: PlantEstado) => void;
+}) {
+  return (
+    <Table>
+      <thead>
+        <tr>
+          <Th>Surco</Th>
+          <Th>Pos</Th>
+          <Th>Código</Th>
+          <Th>Variedad</Th>
+          <Th>Estado</Th>
+          <Th>Año</Th>
+        </tr>
+      </thead>
+      <tbody>
+        {plants.map((p) => (
+          <tr key={p.id}>
+            <Td className="tabular">{p.surco != null ? p.surco : "—"}</Td>
+            <Td className="tabular">{p.position != null ? p.position : "—"}</Td>
+            <Td className="font-mono text-xs">
+              {p.code || <span className="text-subtle">—</span>}
+            </Td>
+            <Td className="text-sm">
+              {p.variedad}
+              {p.notes ? (
+                <div className="mt-0.5 max-w-[10rem] truncate text-xs text-subtle">
+                  {p.notes}
+                </div>
+              ) : null}
+            </Td>
+            <Td>
+              <WriteGate
+                fallback={
+                  <Badge
+                    tone={
+                      p.estado === "viva"
+                        ? "ok"
+                        : p.estado === "zoca"
+                          ? "warn"
+                          : "muted"
+                    }
+                  >
+                    {plantEstadoLabel(p.estado)}
+                  </Badge>
+                }
+              >
+                <Select
+                  className="min-h-9 w-[7.5rem] text-sm"
+                  value={p.estado}
+                  onChange={(e) =>
+                    onEstado(p, e.target.value as PlantEstado)
+                  }
+                  aria-label={`Estado planta ${p.code || p.id}`}
+                >
+                  {PLANT_ESTADOS.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </Select>
+              </WriteGate>
+            </Td>
+            <Td className="tabular text-sm">
+              {p.plantedYear != null ? p.plantedYear : "—"}
+            </Td>
+          </tr>
+        ))}
+      </tbody>
+    </Table>
   );
 }
 
