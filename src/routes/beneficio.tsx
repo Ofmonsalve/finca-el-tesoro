@@ -24,7 +24,14 @@ import {
   resolveStageKgOut,
   stageRequiresExplicitKg,
 } from "@/lib/beneficio-weigh";
-import { batchesForFarm } from "@/lib/cosecha-hub";
+import {
+  GRANO_TIMELINE,
+  UNIT_CEREZA,
+  UNIT_PERGAMINO,
+  batchesForFarm,
+  cosechaHubSummary,
+} from "@/lib/cosecha-hub";
+import { displayFarmName, useFarmRegistry } from "@/lib/farm-registry";
 import { useFarmAccess } from "@/components/farm-access";
 import { canWrite } from "@/lib/roles";
 
@@ -38,11 +45,17 @@ export const Route = createFileRoute("/beneficio")({
 function Page() {
   const { batch: batchQ } = Route.useSearch();
   const farm = useFarm();
+  const farms = useFarmRegistry((s) => s.farms);
+  const farmName = displayFarmName(farm.farmId, farms);
   const batches = batchesForFarm(farm.batches, farm.farmId);
   const settings = useFarm((s) => s.settings);
   const completeStage = useFarm((s) => s.completeStage);
   const undoStage = useFarm((s) => s.undoStage);
   const S = farmStats(useFarm());
+  const hub = useMemo(
+    () => cosechaHubSummary(farm.farmId, farmName, farm.sessions, farm.batches),
+    [farm.farmId, farmName, farm.sessions, farm.batches],
+  );
   const [sel, setSel] = useState<string | null>(batchQ ?? batches[0]?.id ?? null);
   useEffect(() => {
     if (batchQ) setSel(batchQ);
@@ -57,28 +70,25 @@ function Page() {
     }).length,
   }));
 
-  const inBodega = batches.filter((b) => {
-    const done = b.events.map((e) => e.stage);
-    return done.includes("bodega") && !done.includes("venta");
-  }).length;
+  const kgCerezaFlujo = batches.reduce(
+    (a, b) => a + (b.saleId ? 0 : b.kgCereza),
+    0,
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-            Cosecha · Grano
+            Cosecha · Grano · {farmName}
           </p>
-          <h1 className="font-display text-4xl tracking-tight">
-            Beneficio / bodega
-          </h1>
+          <h1 className="font-display text-4xl tracking-tight">{farmName}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-            Del lote de <b className="text-fg">cereza</b> a{" "}
-            <b className="text-fg">pergamino</b>. Entra a{" "}
-            <b className="text-fg">tolva</b>; luego flotación (omisible),
-            fermentación al aire (omisible), despulpado, fermentación en tanque
-            (omisible), lavado, secado, bodega, despacho y venta. Pesaje
-            obligatorio en etapas con merma (P0).
+            Beneficio húmedo y/o seco: cereza → tolva → … →{" "}
+            <b className="text-fg">pergamino</b> → vendible (pergamino o
+            almendra/verde). Cada paso con kg + unidad; nunca se suman{" "}
+            {UNIT_CEREZA} con {UNIT_PERGAMINO}. El rendimiento es un factor.
+            Pesaje P0 en etapas con merma.
           </p>
           <div className="mt-3">
             <Link
@@ -86,11 +96,23 @@ function Page() {
               search={{ ses: undefined, lote: undefined, nuevo: undefined }}
               className="text-sm text-accent hover:underline"
             >
-              ← Volver a Cosecha
+              ← Volver a {farmName}
             </Link>
           </div>
         </div>
       </header>
+
+      <ol className="flex flex-wrap gap-2 rounded-xl border border-border bg-elevated/40 p-3 text-xs">
+        {GRANO_TIMELINE.map((step, i) => (
+          <li key={step.id} className="flex items-center gap-2 text-muted">
+            {i > 0 ? <span aria-hidden className="text-subtle">→</span> : null}
+            <span>
+              <span className="font-medium text-fg">{step.label}</span>
+              <span className="ml-1 text-subtle">({step.hint})</span>
+            </span>
+          </li>
+        ))}
+      </ol>
 
       <nav
         aria-label="Dentro de Cosecha"
@@ -109,22 +131,29 @@ function Page() {
       </nav>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Lotes en proceso" value={String(S.inProcess)} hint="Sin venta" />
-        <Kpi label="En bodega" value={String(inBodega)} hint="Pergamino listo" />
         <Kpi
-          label="Kg cereza en flujo"
-          value={fmtNum(
-            batches.reduce((a, b) => a + (b.saleId ? 0 : b.kgCereza), 0),
-            1,
-          )}
-          hint="Entrada cereza (no pergamino)"
+          label={`${UNIT_CEREZA} en flujo · ${farmName}`}
+          value={kgCerezaFlujo > 0 ? fmtNum(kgCerezaFlujo, 1) : "—"}
+          hint="Entrada (no sumar con pergamino)"
         />
         <Kpi
-          label="Vanos (flotación)"
-          value={S.mermaBook.find((m) => m.stage === "flotacion")?.kgIn
-            ? fmtKg(S.mermaBook.find((m) => m.stage === "flotacion")!.mermaKg)
-            : "—"}
-          hint="Merma comercial"
+          label={`${UNIT_PERGAMINO} vendible · ${farmName}`}
+          value={hub.kgVendible > 0 ? fmtNum(hub.kgVendible, 1) : "—"}
+          hint="Bodega sin venta"
+        />
+        <Kpi
+          label={`Factor cereza→pergamino · ${farmName}`}
+          value={
+            hub.ratioCerezaPergamino != null
+              ? fmtRatio(hub.ratioCerezaPergamino)
+              : "—"
+          }
+          hint="Rendimiento (no es kg)"
+        />
+        <Kpi
+          label="Lotes abiertos"
+          value={String(hub.batchOpenCount)}
+          hint={`${hub.batchBodegaCount} en bodega`}
         />
       </div>
 
@@ -314,10 +343,13 @@ function BatchBoard({
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <CardTitle>{batch.code}</CardTitle>
+          <CardTitle>
+            {lotNombre(lots, batch.lote) || batch.lote}
+          </CardTitle>
           <CardHint>
-            {fmtDate(batch.fecha)} · {batch.lote} {lotNombre(lots, batch.lote)} ·
-            cereza {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
+            {batch.code} · {fmtDate(batch.fecha)} · {UNIT_CEREZA}{" "}
+            {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
+            {done.includes("bodega") ? ` · ${UNIT_PERGAMINO}` : ""}
           </CardHint>
         </div>
         {writable && (next?.id === "venta" || batch.saleId) ? (
@@ -344,7 +376,7 @@ function BatchBoard({
         </div>
         <div className="rounded-xl border border-border px-3 py-2">
           <div className="text-[10px] uppercase tracking-wider text-subtle">
-            Factor real
+            Factor cereza→pergamino
           </div>
           <div className="font-display text-lg tabular">
             {y.factorReal != null ? fmtRatio(y.factorReal) : "—"}
@@ -434,7 +466,13 @@ function BatchBoard({
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Field
-              label="Kg de salida"
+              label={
+                next.id === "bodega" ||
+                next.id === "secado" ||
+                next.id === "despacho"
+                  ? `Kg de salida (${UNIT_PERGAMINO})`
+                  : `Kg de salida (${UNIT_CEREZA} en proceso)`
+              }
               hint={
                 weighRequired
                   ? `obligatorio · esperado ${fmtKg(expectedAt(batch.kgCereza, next.id, batch.factor))}`

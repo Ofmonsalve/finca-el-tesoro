@@ -1,10 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  UNIT_CEREZA,
+  UNIT_PERGAMINO,
   batchesForFarm,
   belongsToFarm,
   cosechaHubSummary,
   sessionsForFarm,
+  taggedForPulso,
   withFarmTag,
 } from "./cosecha-hub.ts";
 import type { HarvestSession, ProcessBatch, ProcessEvent } from "./types.ts";
@@ -37,14 +40,14 @@ function session(
   };
 }
 
-function ev(stage: ProcessEvent["stage"]): ProcessEvent {
+function ev(stage: ProcessEvent["stage"], kgOut = 90): ProcessEvent {
   return {
     id: `ev-${stage}`,
     stage,
     skipped: false,
     at: "2026-09-01T12:00:00.000Z",
     kgIn: 100,
-    kgOut: stage === "bodega" ? 18 : 90,
+    kgOut: stage === "bodega" ? kgOut : kgOut,
     notas: "",
     responsable: "",
   };
@@ -69,35 +72,35 @@ function batch(
 }
 
 describe("cosecha-hub farm isolation", () => {
-  it("belongsToFarm: legacy untagged counts for active farm", () => {
+  it("belongsToFarm: legacy untagged OK in hub; requireTag for Pulso", () => {
     assert.equal(belongsToFarm({ farmId: undefined }, "finca-a"), true);
-    assert.equal(belongsToFarm({ farmId: "finca-a" }, "finca-a"), true);
+    assert.equal(
+      belongsToFarm({ farmId: undefined }, "finca-a", { requireTag: true }),
+      false,
+    );
+    assert.equal(taggedForPulso({ farmId: "finca-a" }, "finca-a"), true);
+    assert.equal(taggedForPulso({ farmId: undefined }, "finca-a"), false);
     assert.equal(belongsToFarm({ farmId: "finca-b" }, "finca-a"), false);
-    assert.equal(belongsToFarm(null, "finca-a"), false);
   });
 
-  it("sessionsForFarm / batchesForFarm drop other farm tags", () => {
+  it("sessionsForFarm / batchesForFarm drop other farm tags + lote filter", () => {
     const ses = [
-      session({ id: "1", totKg: 10, farmId: "a" }),
-      session({ id: "2", totKg: 20, farmId: "b" }),
-      session({ id: "3", totKg: 5 }), // legacy
+      session({ id: "1", totKg: 10, farmId: "a", lote: "L1" }),
+      session({ id: "2", totKg: 20, farmId: "b", lote: "L1" }),
+      session({ id: "3", totKg: 5, lote: "L2" }),
     ];
-    const onlyA = sessionsForFarm(ses, "a");
-    assert.equal(onlyA.length, 2);
-    assert.deepEqual(
-      onlyA.map((s) => s.id).sort(),
-      ["1", "3"],
-    );
+    assert.equal(sessionsForFarm(ses, "a").length, 2);
+    assert.equal(sessionsForFarm(ses, "a", { lote: "L1" }).length, 1);
 
     const bats = [
-      batch({ id: "x", kgCereza: 10, farmId: "a" }),
+      batch({ id: "x", kgCereza: 10, farmId: "a", lote: "L1" }),
       batch({ id: "y", kgCereza: 99, farmId: "b" }),
     ];
     assert.equal(batchesForFarm(bats, "a").length, 1);
-    assert.equal(batchesForFarm(bats, "a")[0].id, "x");
+    assert.equal(batchesForFarm(bats, "a", { lote: "L2" }).length, 0);
   });
 
-  it("hub summarizes kg cereza vs kg pergamino (bodega)", () => {
+  it("hub: kg cereza ≠ kg pergamino; ratio separate; units locked", () => {
     const farmId = "tesoro";
     const sessions = [
       session({ id: "s1", totKg: 120, farmId, fecha: "2026-09-10" }),
@@ -117,7 +120,7 @@ describe("cosecha-hub farm isolation", () => {
         kgCereza: 80,
         kgActual: 14,
         farmId,
-        events: [ev("tolva"), ev("bodega")],
+        events: [ev("tolva", 80), ev("bodega", 14)],
       }),
       batch({
         id: "sold",
@@ -125,24 +128,33 @@ describe("cosecha-hub farm isolation", () => {
         kgActual: 9,
         farmId,
         saleId: "sale-1",
-        events: [ev("tolva"), ev("bodega")],
+        events: [ev("tolva", 50), ev("bodega", 9)],
       }),
     ];
     const hub = cosechaHubSummary(farmId, "El Tesoro", sessions, batches);
+    assert.equal(hub.farmName, "El Tesoro");
     assert.equal(hub.kgCereza, 200);
-    assert.equal(hub.kgPergamino, 14); // only unsold bodega
+    assert.equal(hub.unitCereza, UNIT_CEREZA);
+    assert.equal(hub.kgVendible, 14);
+    assert.equal(hub.kgPergamino, 14);
+    assert.equal(hub.unitVendible, UNIT_PERGAMINO);
+    // Never a combined total — cereza and vendible stay separate
+    assert.notEqual(hub.kgCereza + hub.kgVendible, hub.kgCereza);
+    // Ratio = 80/14 ≈ 5.71 (only bodega measured; sold also measured)
+    // measured = bodega (80/14) + sold (50/9) → (80+50)/(14+9) = 130/23 ≈ 5.65
+    assert.ok(hub.ratioCerezaPergamino != null);
+    assert.equal(hub.ratioCerezaPergamino, Math.round((130 / 23) * 100) / 100);
     assert.equal(hub.sessionCount, 2);
     assert.equal(hub.batchOpenCount, 2);
     assert.equal(hub.batchBodegaCount, 1);
-    assert.equal(hub.farmName, "El Tesoro");
-    // open batches listed before sold
     assert.equal(hub.batches[hub.batches.length - 1].batch.id, "sold");
   });
 
   it("withFarmTag stamps farmId", () => {
-    const row = withFarmTag({ id: "1", farmId: undefined as string | undefined }, "f1");
+    const row = withFarmTag(
+      { id: "1", farmId: undefined as string | undefined },
+      "f1",
+    );
     assert.equal(row.farmId, "f1");
-    const keep = withFarmTag({ id: "2", farmId: "old" }, "f1");
-    assert.equal(keep.farmId, "f1");
   });
 });

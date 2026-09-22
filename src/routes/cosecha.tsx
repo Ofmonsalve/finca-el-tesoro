@@ -1,7 +1,8 @@
 /**
- * Cosecha hub (farm-level): Cereza (harvest) + entry to Grano / beneficio.
- * Nav stays locked at 5 items — Grano nests under Cosecha, not a 6th top item.
- * Isolation: summaries filter by active farmId.
+ * Cosecha hub (farm-level) — locked contract:
+ * Cereza → beneficio → pergamino → vendible (almendra/verde opcional).
+ * Grano nests under Cosecha (no 6th top nav). Title = farm NAME.
+ * Never sum kg cereza with kg pergamino; yield is a ratio.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
@@ -13,9 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
 import { Table, Td, Th } from "@/components/ui/table";
-import { cosechaHubSummary } from "@/lib/cosecha-hub";
+import {
+  GRANO_TIMELINE,
+  UNIT_CEREZA,
+  UNIT_PERGAMINO,
+  cosechaHubSummary,
+} from "@/lib/cosecha-hub";
 import { displayFarmName, useFarmRegistry } from "@/lib/farm-registry";
-import { fmtDate, fmtKg, fmtMoney, fmtNum } from "@/lib/format";
+import { fmtDate, fmtKg, fmtMoney, fmtNum, fmtRatio } from "@/lib/format";
 import { lotNombre } from "@/lib/lots";
 import { useFarm } from "@/lib/store";
 
@@ -23,7 +29,6 @@ export const Route = createFileRoute("/cosecha")({
   validateSearch: (s: Record<string, unknown>) => ({
     ses: typeof s.ses === "string" ? s.ses : undefined,
     lote: typeof s.lote === "string" ? s.lote : undefined,
-    /** Open blank harvest form from hub CTA */
     nuevo: s.nuevo === true || s.nuevo === "1" || s.nuevo === 1 ? "1" : undefined,
   }),
   component: Page,
@@ -46,6 +51,7 @@ function Page() {
   );
 
   if (showForm) {
+    const lotTitle = lote ? lotNombre(lots, lote) || lote : null;
     return (
       <div className="mx-auto max-w-6xl">
         <header className="mb-6">
@@ -53,12 +59,17 @@ function Page() {
             Cosecha · Cereza · {farmName}
           </p>
           <h1 className="font-display text-4xl tracking-tight">
-            {ses ? "Editar sesión" : "Registrar cosecha"}
+            {ses
+              ? lotTitle || farmName
+              : lotTitle
+                ? lotTitle
+                : farmName}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Kilogramos de <b className="text-fg">cereza</b> primero (etiquetados).
-            Horas y pago se calculan solos. Al guardar, el lote entra a{" "}
-            <b className="text-fg">Grano / beneficio</b> (hacia pergamino).
+            {ses ? "Editar sesión · " : "Registrar · "}
+            <b className="text-fg">{UNIT_CEREZA}</b> etiquetados. No se suman con
+            pergamino. Al guardar, el lote entra a Grano / beneficio (húmedo y/o
+            seco → pergamino).
           </p>
           <div className="mt-3">
             <Link
@@ -66,7 +77,7 @@ function Page() {
               search={{ ses: undefined, lote: undefined, nuevo: undefined }}
               className="text-sm text-accent hover:underline"
             >
-              ← Volver a Cosecha
+              ← Volver a {farmName}
             </Link>
           </div>
         </header>
@@ -84,11 +95,12 @@ function Page() {
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
             Cosecha · {farmName}
           </p>
-          <h1 className="font-display text-4xl tracking-tight">Cosecha</h1>
+          <h1 className="font-display text-4xl tracking-tight">{farmName}</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Cereza en el lote, luego Grano / beneficio hacia pergamino. Cada cifra
-            es de <b className="text-fg">{farmName}</b>. Kg cereza y kg pergamino
-            no se mezclan.
+            Línea: cereza → beneficio (húmedo y/o seco) → pergamino → vendible
+            (pergamino o almendra/verde). Cada kg lleva su unidad; el rendimiento
+            cereza→pergamino es un <b className="text-fg">factor</b>, no otro
+            total de kg.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -110,7 +122,18 @@ function Page() {
         </div>
       </header>
 
-      {/* Secondary under Cosecha — not a 6th top nav */}
+      <ol className="flex flex-wrap gap-2 rounded-xl border border-border bg-elevated/40 p-3 text-xs">
+        {GRANO_TIMELINE.map((step, i) => (
+          <li key={step.id} className="flex items-center gap-2 text-muted">
+            {i > 0 ? <span aria-hidden className="text-subtle">→</span> : null}
+            <span>
+              <span className="font-medium text-fg">{step.label}</span>
+              <span className="ml-1 text-subtle">({step.hint})</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+
       <nav
         aria-label="Dentro de Cosecha"
         className="flex flex-wrap gap-2 rounded-xl border border-border bg-elevated/40 p-2"
@@ -135,26 +158,30 @@ function Page() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
-          label={`Kg cereza · ${farmName}`}
+          label={`${UNIT_CEREZA} · ${farmName}`}
           value={hub.kgCereza > 0 ? fmtNum(hub.kgCereza, 1) : "—"}
-          hint="Cosecha registrada"
+          hint="Cosecha del período (misma unidad)"
         />
         <Kpi
-          label={`Kg pergamino · ${farmName}`}
-          value={hub.kgPergamino > 0 ? fmtNum(hub.kgPergamino, 1) : "—"}
-          hint="En bodega, sin venta"
+          label={`${UNIT_PERGAMINO} vendible · ${farmName}`}
+          value={hub.kgVendible > 0 ? fmtNum(hub.kgVendible, 1) : "—"}
+          hint="Pergamino en bodega, sin venta"
         />
         <Kpi
-          label="Sesiones"
-          value={String(hub.sessionCount)}
-          hint="Cereza por lote"
+          label={`Factor cereza→pergamino · ${farmName}`}
+          value={
+            hub.ratioCerezaPergamino != null
+              ? fmtRatio(hub.ratioCerezaPergamino)
+              : "—"
+          }
+          hint="Rendimiento (no es un total de kg)"
         />
         <Kpi
           label="Lotes en beneficio"
           value={String(hub.batchOpenCount)}
           hint={
             hub.batchBodegaCount
-              ? `${hub.batchBodegaCount} en bodega`
+              ? `${hub.batchBodegaCount} en pergamino/bodega`
               : "Sin venta aún"
           }
         />
@@ -164,9 +191,9 @@ function Page() {
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>Cereza por lote</CardTitle>
+              <CardTitle>Cereza por lote · {farmName}</CardTitle>
               <CardHint>
-                Sesiones de cosecha de {farmName}. Abra el lote o edite la sesión.
+                Solo {UNIT_CEREZA}. Abra el lote o edite la sesión.
               </CardHint>
             </div>
             <Button asChild size="sm">
@@ -181,7 +208,7 @@ function Page() {
           </div>
           {!hub.sessions.length ? (
             <p className="mt-6 text-sm text-muted">
-              Aún no hay cereza registrada en esta finca. Empiece por un lote
+              Aún no hay cereza registrada en {farmName}. Empiece por un lote
               activo.
             </p>
           ) : (
@@ -191,7 +218,7 @@ function Page() {
                   <tr>
                     <Th>Fecha</Th>
                     <Th>Lote</Th>
-                    <Th className="text-right">Kg cereza</Th>
+                    <Th className="text-right">{UNIT_CEREZA}</Th>
                     <Th className="text-right">Costo</Th>
                     <Th />
                   </tr>
@@ -206,7 +233,7 @@ function Page() {
                           params={{ code: s.lote }}
                           className="text-accent hover:underline"
                         >
-                          {s.lote} {lotNombre(lots, s.lote)}
+                          {lotNombre(lots, s.lote) || s.lote}
                         </Link>
                       </Td>
                       <Td className="text-right tabular">{fmtKg(s.totKg)}</Td>
@@ -237,10 +264,10 @@ function Page() {
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle>Grano / beneficio</CardTitle>
+              <CardTitle>Grano / beneficio · {farmName}</CardTitle>
               <CardHint>
-                Lotes de beneficio de {farmName}: cereza → pergamino. Pesaje P0
-                en despulpado, lavado, secado y bodega.
+                Beneficio húmedo y/o seco → {UNIT_PERGAMINO}. Pesaje P0 en
+                etapas con merma. Factor cereza→pergamino aparte.
               </CardHint>
             </div>
             <Button asChild size="sm" variant="outline">
@@ -252,41 +279,43 @@ function Page() {
           </div>
           {!hub.batches.length ? (
             <p className="mt-6 text-sm text-muted">
-              Sin lotes de beneficio aún. Al guardar una cosecha, el grano entra
-              a tolva aquí.
+              Sin lotes de beneficio en {farmName}. Al guardar una cosecha, el
+              grano entra a tolva.
             </p>
           ) : (
             <ul className="mt-4 space-y-2">
-              {hub.batches.slice(0, 10).map(({ batch, nextLabel, inBodega }) => (
-                <li key={batch.id}>
-                  <Link
-                    to="/beneficio"
-                    search={{ batch: batch.id }}
-                    className="flex min-h-11 items-center justify-between rounded-xl border border-border/60 px-3 text-sm hover:bg-elevated/60"
-                  >
-                    <span>
-                      <span className="block font-medium text-fg">
-                        {batch.code}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {lotNombre(lots, batch.lote)} · cereza{" "}
-                        {fmtKg(batch.kgCereza)} · ahora {fmtKg(batch.kgActual)}
-                      </span>
-                    </span>
-                    <Badge
-                      tone={
-                        batch.saleId
-                          ? "ok"
-                          : inBodega
-                            ? "ok"
-                            : "accent"
-                      }
+              {hub.batches.slice(0, 10).map(({ batch, nextLabel, phase }) => {
+                const name = lotNombre(lots, batch.lote) || batch.lote;
+                return (
+                  <li key={batch.id}>
+                    <Link
+                      to="/beneficio"
+                      search={{ batch: batch.id }}
+                      className="flex min-h-11 items-center justify-between rounded-xl border border-border/60 px-3 text-sm hover:bg-elevated/60"
                     >
-                      {nextLabel}
-                    </Badge>
-                  </Link>
-                </li>
-              ))}
+                      <span>
+                        <span className="block font-medium text-fg">{name}</span>
+                        <span className="text-xs text-muted">
+                          {batch.code} · {UNIT_CEREZA} {fmtNum(batch.kgCereza, 1)}{" "}
+                          · ahora {fmtNum(batch.kgActual, 1)} kg
+                          {phase === "pergamino" ? ` · ${UNIT_PERGAMINO}` : ""}
+                        </span>
+                      </span>
+                      <Badge
+                        tone={
+                          batch.saleId
+                            ? "ok"
+                            : phase === "pergamino"
+                              ? "ok"
+                              : "accent"
+                        }
+                      >
+                        {nextLabel}
+                      </Badge>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
