@@ -29,14 +29,14 @@ import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
 /**
- * Professional nav (pending Omar confirm — ship this, never Casa/Dueño):
- * Holding: AURA · Fincas · Cosecha · Equipo · Analítica
+ * Locked nav (Omar / AuraCoffee):
+ * Primary: Panorama · Fincas · Cosecha · Equipo · Analítica
  * Finca: Resumen · Lotes · Cosecha · Equipo · Analítica
  * Lote: Cosecha · Labores · Nutrición · Cultivo
- * No Casa / Dueño / Resultados / Desempeño / Números / Gente / Más / Panel.
+ * Never: Casa, Dueño, Oficina, Panel, Más, Desempeño.
  */
 const AURA_NAV = [
-  { to: "/", label: "AURA", icon: Home },
+  { to: "/", label: "Panorama", icon: Home },
   { to: "/", label: "Fincas", icon: LayoutDashboard, hash: "fincas" },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
   { to: "/equipo", label: "Equipo", icon: Users },
@@ -177,7 +177,7 @@ function ShellApp({
   }
 
   const atHoy = pathname === "/";
-  const levelLabel = atHoy ? "AURA" : "Finca";
+  const levelLabel = atHoy ? "Panorama" : "Finca";
   const navItems = atHoy ? AURA_NAV : FINCA_NAV;
 
   function NavList(
@@ -190,9 +190,9 @@ function ShellApp({
   ) {
     return items.map((item) => {
       const hash = "hash" in item ? item.hash : undefined;
-      // Holding AURA="/"; Finca Resumen="/estado"; Fincas = scroll target on "/".
+      // Holding Panorama="/"; Finca Resumen="/estado"; Fincas = scroll target on "/".
       const isActive =
-        item.label === "AURA" || item.label === "Resumen"
+        item.label === "Panorama" || item.label === "Resumen"
           ? pathname === item.to
           : item.label === "Fincas"
             ? false
@@ -224,7 +224,7 @@ function ShellApp({
         <div>
           <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            AURA · Fincas
+            Panorama · Fincas
           </div>
         </div>
         <Button
@@ -259,13 +259,13 @@ function ShellApp({
                 className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-accent hover:bg-elevated/60"
               >
                 <Home className="size-4 shrink-0" />
-                Volver a AURA
+                Volver a Panorama
               </Link>
             ) : null}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              AURA → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
+              Panorama → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />

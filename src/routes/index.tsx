@@ -75,13 +75,13 @@ function ConsolidadoPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-            AURA
+            Panorama
           </p>
           <h1 className="font-display text-4xl tracking-tight">
             Sus fincas
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Primero AURA (todas las fincas), luego una finca, luego un lote.
+            Primero Panorama (todas las fincas), luego una finca, luego un lote.
             Cada cifra lleva el nombre de su finca. Los kg se marcan como cereza
             o pergamino.
           </p>
@@ -135,7 +135,7 @@ function ConsolidadoPage() {
         <Kpi
           label="Kg cereza · todas"
           value={fmtNum(summary.totalKg, 1)}
-          hint="Cereza (no pergamino) · suma AURA"
+          hint="Cereza (no pergamino) · suma Panorama"
         />
         <Kpi
           label="Costo cosecha · todas"
@@ -229,7 +229,7 @@ function ConsolidadoPage() {
       <Card>
         <CardTitle>Cómo se navega</CardTitle>
         <CardHint>
-          AURA → Finca → Lote. Menú: AURA · Fincas · Cosecha · Equipo · Analítica.
+          Panorama → Finca → Lote. Menú: Panorama · Fincas · Cosecha · Equipo · Analítica.
           Beneficio vive en Cosecha / Hoy de la finca, no en el menú de arriba.
         </CardHint>
       </Card>
