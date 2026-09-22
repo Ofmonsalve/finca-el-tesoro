@@ -75,13 +75,13 @@ function ConsolidadoPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-            Panorama
+            Pulso
           </p>
           <h1 className="font-display text-4xl tracking-tight">
             Sus fincas
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Primero Panorama (todas las fincas), luego una finca, luego un lote.
+            Primero Pulso (todas las fincas), luego una finca, luego un lote.
             Cada cifra lleva el nombre de su finca. Los kg se marcan como cereza
             o pergamino.
           </p>
@@ -128,14 +128,14 @@ function ConsolidadoPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
-          label="Fincas"
+          label="Territorios"
           value={String(summary.farmCount)}
           hint="En este dispositivo"
         />
         <Kpi
           label="Kg cereza · todas"
           value={fmtNum(summary.totalKg, 1)}
-          hint="Cereza (no pergamino) · suma Panorama"
+          hint="Cereza (no pergamino) · suma Pulso"
         />
         <Kpi
           label="Costo cosecha · todas"
@@ -153,9 +153,9 @@ function ConsolidadoPage() {
         />
       </div>
 
-      <section id="fincas" className="space-y-3 scroll-mt-24" aria-label="Fincas">
+      <section id="fincas" className="space-y-3 scroll-mt-24" aria-label="Territorios">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-tight">Fincas</h2>
+          <h2 className="font-display text-2xl tracking-tight">Territorios</h2>
           <p className="text-xs text-muted">
             {fmtNum(summary.totalHa, 2)} ha en total
           </p>
@@ -229,7 +229,7 @@ function ConsolidadoPage() {
       <Card>
         <CardTitle>Cómo se navega</CardTitle>
         <CardHint>
-          Panorama → Finca → Lote. Menú: Panorama · Fincas · Cosecha · Gente · Analítica.
+          Pulso → Finca → Lote. Menú: Pulso · Territorios · Cosecha · Talento · Inteligencia.
           Beneficio vive en Cosecha / Hoy de la finca, no en el menú de arriba.
         </CardHint>
       </Card>

@@ -29,26 +29,26 @@ import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
 /**
- * Locked nav (Omar / AuraCoffee):
- * Primary: Panorama · Fincas · Cosecha · Gente · Analítica
- * Finca: Resumen · Lotes · Cosecha · Gente · Analítica
+ * Locked nav (Omar / AuraCoffee) — generational leap:
+ * Primary: Pulso · Territorios · Cosecha · Talento · Inteligencia
+ * Finca: Pulso · Lotes · Cosecha · Talento · Inteligencia
  * Lote: Cosecha · Labores · Nutrición · Cultivo
- * Never: Casa, Dueño, Oficina, Panel, Más, Desempeño.
+ * Never: Casa, Dueño, Oficina, Panel, Más, Desempeño, Panorama, Fincas, Gente, Analítica, Equipo, Resumen (as nav).
  */
 const AURA_NAV = [
-  { to: "/", label: "Panorama", icon: Home },
-  { to: "/", label: "Fincas", icon: LayoutDashboard, hash: "fincas" },
+  { to: "/", label: "Pulso", icon: Home },
+  { to: "/", label: "Territorios", icon: LayoutDashboard, hash: "fincas" },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Gente", icon: Users },
-  { to: "/finanzas", label: "Analítica", icon: BarChart3 },
+  { to: "/equipo", label: "Talento", icon: Users },
+  { to: "/finanzas", label: "Inteligencia", icon: BarChart3 },
 ] as const;
 
 const FINCA_NAV = [
-  { to: "/estado", label: "Resumen", icon: Home },
+  { to: "/estado", label: "Pulso", icon: Home },
   { to: "/lotes", label: "Lotes", icon: Tractor },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Gente", icon: Users },
-  { to: "/finanzas", label: "Analítica", icon: BarChart3 },
+  { to: "/equipo", label: "Talento", icon: Users },
+  { to: "/finanzas", label: "Inteligencia", icon: BarChart3 },
 ] as const;
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -177,7 +177,7 @@ function ShellApp({
   }
 
   const atHoy = pathname === "/";
-  const levelLabel = atHoy ? "Panorama" : "Finca";
+  const levelLabel = atHoy ? "Pulso" : "Finca";
   const navItems = atHoy ? AURA_NAV : FINCA_NAV;
 
   function NavList(
@@ -190,13 +190,15 @@ function ShellApp({
   ) {
     return items.map((item) => {
       const hash = "hash" in item ? item.hash : undefined;
-      // Holding Panorama="/"; Finca Resumen="/estado"; Fincas = scroll target on "/".
+      // Holding Pulso="/"; Finca Pulso="/estado"; Territorios = scroll target on "/".
       const isActive =
-        item.label === "Panorama" || item.label === "Resumen"
-          ? pathname === item.to
-          : item.label === "Fincas"
-            ? false
-            : pathname === item.to || pathname.startsWith(`${item.to}/`);
+        item.label === "Pulso" && item.to === "/"
+          ? pathname === "/"
+          : item.label === "Pulso" && item.to === "/estado"
+            ? pathname === "/estado"
+            : item.label === "Territorios"
+              ? false
+              : pathname === item.to || pathname.startsWith(`${item.to}/`);
       const Icon = item.icon;
       return (
         <Link
@@ -224,7 +226,7 @@ function ShellApp({
         <div>
           <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            Panorama · Fincas
+            Pulso · Territorios
           </div>
         </div>
         <Button
@@ -259,13 +261,13 @@ function ShellApp({
                 className="mt-3 flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-accent hover:bg-elevated/60"
               >
                 <Home className="size-4 shrink-0" />
-                Volver a Panorama
+                Volver a Pulso
               </Link>
             ) : null}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Panorama → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
+              Pulso → Finca → Lote. Cada cifra lleva el nombre de su finca. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />

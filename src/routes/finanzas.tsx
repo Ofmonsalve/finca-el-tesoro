@@ -33,9 +33,9 @@ function Page() {
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-          Analítica
+          Inteligencia
         </p>
-        <h1 className="font-display text-4xl tracking-tight">Analítica</h1>
+        <h1 className="font-display text-4xl tracking-tight">Inteligencia</h1>
         <p className="mt-2 text-sm text-muted">
           Primero el dinero que entra y sale; luego margen, equilibrio y
           sensibilidad. Todo se recalcula desde

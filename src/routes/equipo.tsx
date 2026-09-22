@@ -40,7 +40,7 @@ function Page() {
         <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
           Gobierno
         </p>
-        <h1 className="font-display text-4xl tracking-tight">Gente</h1>
+        <h1 className="font-display text-4xl tracking-tight">Talento</h1>
         <p className="text-sm text-muted">
           Acceso al equipo según su rol. Si aún no opera la finca, espere a
           que un administrador le asigne permisos. Solo si no hay
@@ -57,7 +57,7 @@ function Page() {
         <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
           Gobierno
         </p>
-        <h1 className="font-display text-4xl tracking-tight">Gente</h1>
+        <h1 className="font-display text-4xl tracking-tight">Talento</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Usted es el administrador. Asigne operador o consulta a quien
           invite. No se pide autorización para el dueño.

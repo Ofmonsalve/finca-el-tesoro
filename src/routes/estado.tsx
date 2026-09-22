@@ -11,7 +11,7 @@ import { useFarm } from "@/lib/store";
 export const Route = createFileRoute("/estado")({ component: EstadoPage });
 
 /**
- * Finca · Resumen — panorama de la finca activa.
+ * Finca · Pulso — pulso de la finca activa.
  * Beneficio no es menú de arriba: se entra desde aquí o desde Cosecha.
  */
 function EstadoPage() {
@@ -29,7 +29,7 @@ function EstadoPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
-            Finca · Resumen
+            Finca · Pulso
           </p>
           <h1 className="font-display text-4xl tracking-tight">{name}</h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
