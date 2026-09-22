@@ -2,13 +2,13 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   BookOpen,
+  ChevronsUpDown,
   Factory,
   Landmark,
   LayoutDashboard,
   Leaf,
   Menu,
   Scale,
-  Shield,
   Tractor,
   Users,
   Wallet,
@@ -25,28 +25,34 @@ import { FarmAccessProvider, useFarmAccess } from "@/components/farm-access";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { todayISO } from "@/lib/format";
-import { canExport, canRestore, roleLabel } from "@/lib/roles";
+import { canExport, canRestore, roleLabel, FARM_ID } from "@/lib/roles";
 import { areaActiva } from "@/lib/lots";
 import { useFarm } from "@/lib/store";
 import { Button } from "./ui/button";
 
 const PRIMARY = [
-  { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/lotes", label: "Lotes", icon: Tractor },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/beneficio", label: "Beneficio", icon: Factory },
-  { to: "/historial", label: "Historial", icon: BookOpen },
-  { to: "/liquidacion", label: "Pagos", icon: Users },
+  { to: "/beneficio", label: "Grano", icon: Factory },
+  { to: "/", label: "Panel", icon: LayoutDashboard },
 ] as const;
 
+/** Secondary farm tools — Settings-style, not an “office”. */
 const MORE = [
+  { to: "/historial", label: "Historial", icon: BookOpen },
+  { to: "/liquidacion", label: "Gente · pagos", icon: Users },
+  { to: "/equipo", label: "Gente · roles", icon: Users },
   { to: "/productividad", label: "Productividad", icon: BarChart3 },
   { to: "/costos", label: "Costos", icon: Wallet },
-  { to: "/lotes", label: "Lotes", icon: Tractor },
   { to: "/ventas", label: "Ventas", icon: Scale },
-  { to: "/finanzas", label: "Finanzas", icon: Landmark },
+  { to: "/finanzas", label: "Dinero", icon: Landmark },
   { to: "/contabilidad", label: "Libro", icon: BookOpen },
-  { to: "/equipo", label: "Equipo", icon: Shield },
 ] as const;
+
+function farmDisplayName(farmId: string): string {
+  if (farmId === FARM_ID || farmId === "finca-el-tesoro") return "El Tesoro";
+  return farmId.replace(/^finca-/, "").replace(/-/g, " ") || "Finca";
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -179,9 +185,9 @@ function ShellApp({
     <div className="min-h-dvh bg-bg text-fg">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-bg/90 px-4 py-3 backdrop-blur md:hidden no-print">
         <div>
-          <div className="font-display text-lg">El Tesoro</div>
+          <div className="font-display text-lg">AURA</div>
           <div className="text-[11px] uppercase tracking-widest text-subtle">
-            Santander · 1.900 m
+            Lotes de la finca
           </div>
         </div>
         <Button
@@ -202,29 +208,18 @@ function ShellApp({
           )}
         >
           <div className="hidden px-5 py-6 md:block">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-accent">
-              Finca
-            </div>
-            <div className="font-display text-2xl tracking-tight">El Tesoro</div>
-            <p className="mt-1 text-xs text-muted">
-              Caturra / Castillo · {ha.toFixed(2).replace(".", ",")} ha
-            </p>
-            {ready ? (
-              <p className="mt-2 text-[11px] uppercase tracking-widest text-accent">
-                {roleLabel(role)}
-              </p>
-            ) : null}
+            <FarmChip ha={ha} ready={ready} role={role} />
           </div>
           <nav className="flex flex-col gap-0.5 p-3">
             {NavList(PRIMARY)}
             <div className="mt-4 px-3 pb-1 text-[10px] uppercase tracking-widest text-subtle">
-              Análisis
+              Más
             </div>
             {NavList(MORE)}
           </nav>
           <div className="space-y-2 border-t border-border p-3">
             <p className="px-1 text-[11px] leading-relaxed text-muted">
-              Un libro de finca. El rol define quién registra y quién solo mira.
+              Primero la finca, luego el lote. El rol define quién registra y quién solo mira.
             </p>
             <div className="px-1">
               <UserButton />
@@ -272,6 +267,63 @@ function ShellApp({
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+
+function FarmChip({
+  ha,
+  ready,
+  role,
+}: {
+  ha: number;
+  ready: boolean;
+  role: ReturnType<typeof useFarmAccess>["role"];
+}) {
+  const farmId = useFarm((s) => s.farmId);
+  const [open, setOpen] = useState(false);
+  const name = farmDisplayName(farmId);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full rounded-xl text-left transition-colors hover:bg-elevated/50"
+        aria-expanded={open}
+        aria-label="Cambiar finca"
+      >
+        <div className="text-[11px] uppercase tracking-[0.2em] text-accent">
+          Finca
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <span className="font-display text-2xl tracking-tight">{name}</span>
+          <ChevronsUpDown className="size-4 shrink-0 text-subtle" />
+        </div>
+        <p className="mt-1 text-xs text-muted">
+          {ha.toFixed(2).replace(".", ",")} ha activas
+        </p>
+        {ready ? (
+          <p className="mt-2 text-[11px] uppercase tracking-widest text-accent">
+            {roleLabel(role)}
+          </p>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-elevated">
+          <div className="flex min-h-11 items-center justify-between px-3 text-sm">
+            <span className="text-fg">{name}</span>
+            <span className="text-[11px] uppercase tracking-wide text-accent">
+              Activa
+            </span>
+          </div>
+          <p className="border-t border-border px-3 py-3 text-xs leading-relaxed text-muted">
+            Cambiar finca: cada finca tiene sus propios lotes. Pronto podrá
+            elegir otra aquí; hoy esta sesión trabaja solo en {name}.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
