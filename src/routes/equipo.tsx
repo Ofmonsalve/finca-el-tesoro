@@ -42,7 +42,7 @@ function Page() {
         </p>
         <h1 className="font-display text-4xl tracking-tight">Talento</h1>
         <p className="text-sm text-muted">
-          Acceso al equipo según su rol. Si aún no opera la finca, espere a
+          Gente de la finca: jornales, roles y quién puede registrar. Si aún no opera la finca, espere a
           que un administrador le asigne permisos. Solo si no hay
           administrador puede registrarse el primero.
         </p>
@@ -59,8 +59,8 @@ function Page() {
         </p>
         <h1 className="font-display text-4xl tracking-tight">Talento</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Usted es el administrador. Asigne operador o consulta a quien
-          invite. No se pide autorización para el dueño.
+          Usted administra la gente: asigne roles (operador o consulta) y
+          jornales según quien invite. No se pide autorización al dueño.
         </p>
       </header>
 

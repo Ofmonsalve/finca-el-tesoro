@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({ component: ConsolidadoPage });
 
 /**
- * Home for a multi-farm owner: Consolidado first (all fincas), then drill into
- * one finca, then one lote. Not an “executive panel”.
+ * Holding Pulso — glance de las 6 métricas (orden contrato):
+ * Entra → Sale → Cosecha → Vendible → Costo/kg → Talento; luego alertas.
+ * Toda cifra lleva etiqueta de finca (o «todas las fincas»).
  */
 function ConsolidadoPage() {
   const navigate = useNavigate();
@@ -28,13 +29,15 @@ function ConsolidadoPage() {
   const [note, setNote] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  // Recompute when farm list or active book changes (sessions/lots of active farm).
   const sessions = useFarm((s) => s.sessions);
   const lots = useFarm((s) => s.lots);
+  const sales = useFarm((s) => s.sales);
+  const costs = useFarm((s) => s.costs);
+  const batches = useFarm((s) => s.batches);
   const summary = useMemo(
     () => buildConsolidado(farms),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- active book edits must refresh rollup
-    [farms, sessions, lots, activeFarmId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [farms, sessions, lots, sales, costs, batches, activeFarmId],
   );
 
   function openFarm(id: string) {
@@ -69,6 +72,12 @@ function ConsolidadoPage() {
   }
 
   const activeName = displayFarmName(activeFarmId, farms);
+  const scope = "todas las fincas";
+  const hasIn = summary.totalMoneyIn > 0;
+  const hasOut = summary.totalMoneyOut > 0;
+  const hasCosecha = summary.totalKgCereza > 0;
+  const hasVendible = summary.totalKgVendible > 0;
+  const hasTalento = summary.totalTalentoPay > 0;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -77,13 +86,11 @@ function ConsolidadoPage() {
           <p className="text-[11px] uppercase tracking-[0.2em] text-accent">
             Pulso
           </p>
-          <h1 className="font-display text-4xl tracking-tight">
-            Sus fincas
-          </h1>
+          <h1 className="font-display text-4xl tracking-tight">Sus fincas</h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            Primero Pulso (todas las fincas), luego una finca, luego un lote.
-            Cada cifra lleva el nombre de su finca. Los kg se marcan como cereza
-            o pergamino.
+            Primero Pulso (todas), luego una finca, luego un lote. Cada cifra
+            lleva el nombre de su finca. Los kg se marcan cereza o pergamino —
+            nunca se mezclan.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -102,7 +109,9 @@ function ConsolidadoPage() {
       {showCreate ? (
         <Card>
           <CardTitle>Nueva finca</CardTitle>
-          <CardHint>Arranca vacía: sin lotes demo hasta que usted los pida.</CardHint>
+          <CardHint>
+            Arranca vacía: sin lotes demo hasta que usted los pida.
+          </CardHint>
           <div className="mt-4 flex flex-wrap gap-2">
             <input
               type="text"
@@ -126,38 +135,79 @@ function ConsolidadoPage() {
 
       {note ? <p className="text-sm text-accent">{note}</p> : null}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Orden contrato: Entra → Sale → Cosecha → Vendible → Costo/kg → Talento */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi
-          label="Territorios"
-          value={String(summary.farmCount)}
-          hint="En este dispositivo"
+          label={`Entra · ${scope}`}
+          value={hasIn ? fmtMoney(summary.totalMoneyIn) : "—"}
+          hint={hasIn ? "Ventas · suma por finca abajo" : "Sin ventas en el libro"}
         />
         <Kpi
-          label="Kg cereza · todas"
-          value={fmtNum(summary.totalKg, 1)}
-          hint="Cereza (no pergamino) · suma Pulso"
-        />
-        <Kpi
-          label="Costo cosecha · todas"
-          value={fmtMoney(summary.totalCostoCosecha)}
-          hint="M.O. + alimentación · por finca abajo"
-        />
-        <Kpi
-          label="Pagos pendientes · todas"
-          value={fmtMoney(summary.totalPendMO)}
+          label={`Sale · ${scope}`}
+          value={hasOut ? fmtMoney(summary.totalMoneyOut) : "—"}
           hint={
-            summary.alertCount
-              ? `${summary.alertCount} alerta(s)`
-              : "Sin alertas"
+            hasOut
+              ? "Cosecha + gastos · suma por finca abajo"
+              : "Sin salidas en el libro"
+          }
+        />
+        <Kpi
+          label={`Cosecha · kg cereza · ${scope}`}
+          value={hasCosecha ? fmtNum(summary.totalKgCereza, 1) : "—"}
+          hint={
+            hasCosecha
+              ? `kg cereza · ${summary.farmCount} finca(s)`
+              : "Aún no hay cosecha"
+          }
+        />
+        <Kpi
+          label={`Vendible · kg pergamino · ${scope}`}
+          value={hasVendible ? fmtNum(summary.totalKgVendible, 1) : "—"}
+          hint={
+            hasVendible
+              ? "kg pergamino en bodega, sin vender"
+              : "Sin pergamino listo"
+          }
+        />
+        <Kpi
+          label={`Costo / kg cereza · ${scope}`}
+          value={summary.costoKg != null ? fmtMoney(summary.costoKg) : "—"}
+          hint={
+            summary.costoKg != null
+              ? "Suma costo ÷ suma kg cereza (misma unidad)"
+              : "Se calcula con kg cereza"
+          }
+        />
+        <Kpi
+          label={`Talento · gente · ${scope}`}
+          value={hasTalento ? fmtMoney(summary.totalTalentoPay) : "—"}
+          hint={
+            hasTalento
+              ? `Jornales / pagos · pend. ${fmtMoney(summary.totalPendMO)}`
+              : "Aún no hay pagos a gente"
           }
         />
       </div>
 
-      <section id="fincas" className="space-y-3 scroll-mt-24" aria-label="Territorios">
+      {!hasCosecha && !hasIn && !hasOut ? (
+        <Card>
+          <CardTitle>Libro en calma</CardTitle>
+          <CardHint>
+            Cuando registre cosecha, ventas o gastos, aquí late el consolidado.
+            Nada inventado.
+          </CardHint>
+        </Card>
+      ) : null}
+
+      <section
+        id="fincas"
+        className="space-y-3 scroll-mt-24"
+        aria-label="Territorios"
+      >
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-2xl tracking-tight">Territorios</h2>
           <p className="text-xs text-muted">
-            {fmtNum(summary.totalHa, 2)} ha en total
+            {fmtNum(summary.totalHa, 2)} ha · {scope}
           </p>
         </div>
         <ul className="space-y-2">
@@ -179,7 +229,7 @@ function ConsolidadoPage() {
                     <div className="grid size-11 place-items-center rounded-xl border border-border bg-elevated text-accent">
                       <Tractor className="size-5" />
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-display text-xl tracking-tight">
                           {f.name}
@@ -191,34 +241,70 @@ function ConsolidadoPage() {
                         )}
                       </div>
                       <p className="mt-1 text-sm text-muted">
-                        {f.lotCount} lote(s) · {fmtNum(f.ha, 2)} ha ·{" "}
-                        {fmtKg(f.kg)} cereza · {f.name}
+                        {f.lotCount} lote(s) · {fmtNum(f.ha, 2)} ha · {f.name}
                       </p>
+                      {/* 6 métricas por finca, etiqueta = nombre */}
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted sm:grid-cols-3">
+                        <div>
+                          <dt className="uppercase tracking-wide">Entra · {f.name}</dt>
+                          <dd className="tabular text-fg">
+                            {f.moneyIn > 0 ? fmtMoney(f.moneyIn) : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="uppercase tracking-wide">Sale · {f.name}</dt>
+                          <dd className="tabular text-fg">
+                            {f.moneyOut > 0 ? fmtMoney(f.moneyOut) : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="uppercase tracking-wide">
+                            Cosecha · kg cereza · {f.name}
+                          </dt>
+                          <dd className="tabular text-fg">
+                            {f.kgCereza > 0 ? fmtNum(f.kgCereza, 1) : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="uppercase tracking-wide">
+                            Vendible · kg pergamino · {f.name}
+                          </dt>
+                          <dd className="tabular text-fg">
+                            {f.kgVendible > 0 ? fmtNum(f.kgVendible, 1) : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="uppercase tracking-wide">
+                            Costo / kg cereza · {f.name}
+                          </dt>
+                          <dd className="tabular text-fg">
+                            {f.costoKg != null ? fmtMoney(f.costoKg) : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="uppercase tracking-wide">
+                            Talento · gente · {f.name}
+                          </dt>
+                          <dd className="tabular text-fg">
+                            {f.talentoPay > 0 ? fmtMoney(f.talentoPay) : "—"}
+                          </dd>
+                        </div>
+                      </dl>
                       {f.alerts.length ? (
                         <ul className="mt-2 space-y-0.5">
                           {f.alerts.map((a) => (
-                            <li
-                              key={a}
-                              className="text-xs text-amber-200/90"
-                            >
-                              {a}
+                            <li key={a} className="text-xs text-amber-200/90">
+                              {a} · {f.name}
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className="mt-2 text-xs text-muted">Al día</p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-muted sm:flex-col sm:items-end">
-                    <span>
-                      Cosecha {fmtMoney(f.costoCosecha)} · {f.name}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-accent">
-                      Entrar
-                      <ChevronRight className="size-4" />
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-sm text-accent">
+                    Entrar
+                    <ChevronRight className="size-4" />
+                  </span>
                 </button>
               </li>
             );
@@ -229,8 +315,9 @@ function ConsolidadoPage() {
       <Card>
         <CardTitle>Cómo se navega</CardTitle>
         <CardHint>
-          Pulso → Finca → Lote. Menú: Pulso · Territorios · Cosecha · Talento · Inteligencia.
-          Beneficio vive en Cosecha / Hoy de la finca, no en el menú de arriba.
+          Pulso → Finca → Lote. Menú: Pulso · Territorios · Cosecha · Talento ·
+          Inteligencia. Beneficio vive en Cosecha / Hoy de la finca, no en el
+          menú de arriba.
         </CardHint>
       </Card>
     </div>
