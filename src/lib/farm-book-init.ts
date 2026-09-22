@@ -146,3 +146,109 @@ export function createFarmPersistStorage(farmId: string = FARM_ID): {
     },
   };
 }
+
+/** Module pointer: which farm blob Zustand persist reads/writes. */
+let activePersistFarmId: string = FARM_ID;
+
+export function getActivePersistFarmId(): string {
+  return activePersistFarmId;
+}
+
+export function setActivePersistFarmId(farmId: string): void {
+  const id = (farmId || FARM_ID).trim() || FARM_ID;
+  activePersistFarmId = id;
+}
+
+/** Shape written under ft-book-v2-${farmId}. */
+export type PersistedFarmBookSlice = {
+  farmId: string;
+  settings: Settings;
+  sessions: unknown[];
+  batches: unknown[];
+  liquidations: unknown[];
+  sales: unknown[];
+  costs: unknown[];
+  journals: unknown[];
+  lots: FarmLot[];
+};
+
+/**
+ * Persist storage that always scopes by the active farm id (or farmId inside
+ * the payload on write). Legacy ft-tesoro-v1 migrates only for the default farm.
+ */
+export function createActiveFarmPersistStorage(): {
+  getItem: (name: string) => string | null;
+  setItem: (name: string, value: string) => void;
+  removeItem: (name: string) => void;
+} {
+  return {
+    getItem: (_name: string) => {
+      if (typeof localStorage === "undefined") return null;
+      const farmId = getActivePersistFarmId();
+      return createFarmPersistStorage(farmId).getItem(storageKeyForFarm(farmId));
+    },
+    setItem: (_name: string, value: string) => {
+      if (typeof localStorage === "undefined") return;
+      let farmId = getActivePersistFarmId();
+      try {
+        const parsed = JSON.parse(value) as { state?: { farmId?: string } };
+        const fromState = parsed?.state?.farmId;
+        if (typeof fromState === "string" && fromState.trim()) {
+          farmId = fromState.trim();
+        }
+      } catch {
+        /* keep active */
+      }
+      localStorage.setItem(storageKeyForFarm(farmId), value);
+    },
+    removeItem: (_name: string) => {
+      if (typeof localStorage === "undefined") return;
+      localStorage.removeItem(storageKeyForFarm(getActivePersistFarmId()));
+    },
+  };
+}
+
+/** Read a farm book blob from localStorage (null if absent / invalid). */
+export function readFarmBookFromStorage(
+  farmId: string,
+): PersistedFarmBookSlice | null {
+  if (typeof localStorage === "undefined") return null;
+  const raw = createFarmPersistStorage(farmId).getItem(storageKeyForFarm(farmId));
+  if (raw == null) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      state?: Partial<PersistedFarmBookSlice>;
+    };
+    const s = parsed?.state;
+    if (!s || typeof s !== "object") return null;
+    return {
+      farmId:
+        typeof s.farmId === "string" && s.farmId.trim()
+          ? s.farmId.trim()
+          : farmId,
+      settings: (s.settings as Settings) ?? { ...EMPTY_SETTINGS },
+      sessions: Array.isArray(s.sessions) ? s.sessions : [],
+      batches: Array.isArray(s.batches) ? s.batches : [],
+      liquidations: Array.isArray(s.liquidations) ? s.liquidations : [],
+      sales: Array.isArray(s.sales) ? s.sales : [],
+      costs: Array.isArray(s.costs) ? s.costs : [],
+      journals: Array.isArray(s.journals) ? s.journals : [],
+      lots: mergeLotsFromPersist(s.lots, []),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Write a farm book blob (Zustand persist envelope). */
+export function writeFarmBookToStorage(
+  farmId: string,
+  slice: PersistedFarmBookSlice,
+): void {
+  if (typeof localStorage === "undefined") return;
+  const envelope = JSON.stringify({
+    state: { ...slice, farmId },
+    version: 0,
+  });
+  localStorage.setItem(storageKeyForFarm(farmId), envelope);
+}

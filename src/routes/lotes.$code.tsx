@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 const FACES = [
   { id: "cosecha", label: "Cosecha", icon: Leaf },
   { id: "labores", label: "Labores", icon: Shovel },
-  { id: "abono", label: "Abono", icon: FlaskConical },
+  { id: "abono", label: "Nutrición", icon: FlaskConical },
   { id: "cultivo", label: "Cultivo", icon: Sprout },
 ] as const;
 
@@ -152,8 +152,8 @@ function LotRoomPage() {
       ) : null}
       {cara === "abono" ? (
         <ComingFace
-          title="Abono"
-          body="Fertilizaciones y enmiendas por lote: producto, dosis, fecha y costo. Sin datos inventados — cuando exista el modelo, esta cara lo mostrará."
+          title="Nutrición"
+          body="Nutrición: fertilizaciones y enmiendas por lote: producto, dosis, fecha y costo. Sin datos inventados — cuando exista el modelo, esta cara lo mostrará."
         />
       ) : null}
       {cara === "cultivo" ? (

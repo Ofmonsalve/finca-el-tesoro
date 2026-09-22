@@ -5,12 +5,15 @@ import { n } from "./format";
 import { nextLotCode, type FarmLot, type LotCode } from "./lots";
 import {
   createEmptyFarmBook,
-  createFarmPersistStorage,
+  createActiveFarmPersistStorage,
   cloneDemoLots,
   lotsFromImport,
   mergeLotsFromPersist,
   shouldOfferDemoLots,
-  storageKeyForFarm,
+  setActivePersistFarmId,
+  readFarmBookFromStorage,
+  writeFarmBookToStorage,
+  type PersistedFarmBookSlice,
 } from "./farm-book-init";
 import { FARM_ID } from "./roles";
 import { PAY_METHODS, nextPendingStage, type StageId } from "./process";
@@ -44,9 +47,10 @@ export {
   workerKey,
 } from "./payroll";
 
-/** Active farm storage key (scoped by farmId). Legacy ft-tesoro-v1 migrates on read. */
-const SK = storageKeyForFarm(FARM_ID);
+/** Persist name is a stable label; real keys are ft-book-v2-${farmId}. */
+const SK = "ft-book-active";
 const emptyBook = createEmptyFarmBook(FARM_ID);
+setActivePersistFarmId(FARM_ID);
 
 export type FarmState = {
   hydrated: boolean;
@@ -91,6 +95,14 @@ export type FarmState = {
   wipeHarvest: () => void;
   /** Explicit opt-in: load El Tesoro demo lots (only if catalog empty, unless force). */
   loadDemoLots: (opts?: { force?: boolean }) => { ok: boolean; error?: string };
+  /**
+   * Switch active farm book: flush current blob, load target (empty if new).
+   * Does not inject demo lots.
+   */
+  switchFarm: (
+    farmId: string,
+    opts?: { flush?: boolean },
+  ) => { ok: boolean; error?: string };
 };
 
 const defaultSettings: Settings = {
@@ -537,11 +549,82 @@ export const useFarm = create<FarmState>()(
         set({ lots: cloneDemoLots() });
         return { ok: true };
       },
+      switchFarm: (farmId, opts) => {
+        const id = (farmId || "").trim();
+        if (!id) return { ok: false, error: "Finca inválida." };
+        const current = get();
+        if (id === current.farmId) {
+          setActivePersistFarmId(id);
+          return { ok: true };
+        }
+
+        const shouldFlush = opts?.flush !== false;
+        if (shouldFlush) {
+          const slice: PersistedFarmBookSlice = {
+            farmId: current.farmId,
+            settings: current.settings,
+            sessions: current.sessions,
+            batches: current.batches,
+            liquidations: current.liquidations,
+            sales: current.sales,
+            costs: current.costs,
+            journals: current.journals,
+            lots: current.lots,
+          };
+          writeFarmBookToStorage(current.farmId, slice);
+        }
+
+        setActivePersistFarmId(id);
+        const loaded = readFarmBookFromStorage(id);
+        if (loaded) {
+          set({
+            farmId: id,
+            settings: { ...defaultSettings, ...loaded.settings },
+            sessions: (loaded.sessions as FarmState["sessions"]) ?? [],
+            batches: (loaded.batches as FarmState["batches"]) ?? [],
+            liquidations:
+              (loaded.liquidations as FarmState["liquidations"]) ?? [],
+            sales: ((loaded.sales as FarmState["sales"]) ?? []).map((s) => ({
+              ...s,
+              metodo: s.metodo ?? "efectivo",
+              batchId: s.batchId ?? "",
+            })),
+            costs: (loaded.costs as FarmState["costs"]) ?? [],
+            journals: (loaded.journals as FarmState["journals"]) ?? [],
+            lots: mergeLotsFromPersist(loaded.lots, []),
+          });
+        } else {
+          const empty = createEmptyFarmBook(id);
+          set({
+            farmId: empty.farmId,
+            settings: { ...empty.settings },
+            sessions: [],
+            batches: [],
+            liquidations: [],
+            sales: [],
+            costs: [],
+            journals: [],
+            lots: [],
+          });
+          writeFarmBookToStorage(id, {
+            farmId: id,
+            settings: empty.settings,
+            sessions: [],
+            batches: [],
+            liquidations: [],
+            sales: [],
+            costs: [],
+            journals: [],
+            lots: [],
+          });
+        }
+        return { ok: true };
+      },
     }),
     {
       name: SK,
       skipHydration: true,
-      storage: createJSONStorage(() => createFarmPersistStorage(FARM_ID)),
+      storage: createJSONStorage(() => createActiveFarmPersistStorage()),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<FarmState> & { farmId?: string };
         const sessions = p.sessions ?? current.sessions ?? [];
