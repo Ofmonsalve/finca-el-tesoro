@@ -30,8 +30,8 @@ import { Button } from "./ui/button";
 
 /**
  * Locked nav (Omar / AuraCoffee):
- * Primary: Panorama · Fincas · Cosecha · Equipo · Analítica
- * Finca: Resumen · Lotes · Cosecha · Equipo · Analítica
+ * Primary: Panorama · Fincas · Cosecha · Gente · Analítica
+ * Finca: Resumen · Lotes · Cosecha · Gente · Analítica
  * Lote: Cosecha · Labores · Nutrición · Cultivo
  * Never: Casa, Dueño, Oficina, Panel, Más, Desempeño.
  */
@@ -39,7 +39,7 @@ const AURA_NAV = [
   { to: "/", label: "Panorama", icon: Home },
   { to: "/", label: "Fincas", icon: LayoutDashboard, hash: "fincas" },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Equipo", icon: Users },
+  { to: "/equipo", label: "Gente", icon: Users },
   { to: "/finanzas", label: "Analítica", icon: BarChart3 },
 ] as const;
 
@@ -47,7 +47,7 @@ const FINCA_NAV = [
   { to: "/estado", label: "Resumen", icon: Home },
   { to: "/lotes", label: "Lotes", icon: Tractor },
   { to: "/cosecha", label: "Cosecha", icon: Leaf },
-  { to: "/equipo", label: "Equipo", icon: Users },
+  { to: "/equipo", label: "Gente", icon: Users },
   { to: "/finanzas", label: "Analítica", icon: BarChart3 },
 ] as const;
 

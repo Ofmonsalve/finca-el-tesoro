@@ -229,7 +229,7 @@ function ConsolidadoPage() {
       <Card>
         <CardTitle>Cómo se navega</CardTitle>
         <CardHint>
-          Panorama → Finca → Lote. Menú: Panorama · Fincas · Cosecha · Equipo · Analítica.
+          Panorama → Finca → Lote. Menú: Panorama · Fincas · Cosecha · Gente · Analítica.
           Beneficio vive en Cosecha / Hoy de la finca, no en el menú de arriba.
         </CardHint>
       </Card>
