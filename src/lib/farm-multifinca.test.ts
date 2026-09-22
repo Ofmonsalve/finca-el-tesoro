@@ -180,4 +180,165 @@ describe("multifinca isolation", () => {
     assert.equal(summary.farms[1].kg, 60);
     assert.equal(summary.farmCount, 2);
   });
+
+
+  it("two farms: isolation of money + sum of kg/pay (no mixing)", () => {
+    writeFarmBookToStorage("finca-a", {
+      farmId: "finca-a",
+      settings: { ...EMPTY_SETTINGS },
+      sessions: [
+        session({ id: "a1", totKg: 100, totPay: 50000, totAlim: 8000 }),
+      ],
+      batches: [],
+      liquidations: [],
+      sales: [
+        {
+          id: "v1",
+          fecha: "2026-09-10",
+          cliente: "FNC",
+          tipo: "pergamino",
+          kg: 10,
+          precioKg: 20000,
+          total: 200000,
+          cobrado: 200000,
+          metodo: "efectivo",
+          lote: "",
+          batchId: "",
+          obs: "",
+        },
+      ],
+      costs: [
+        {
+          id: "c1",
+          fecha: "2026-09-10",
+          lote: "",
+          categoria: "otro",
+          concepto: "insumo",
+          monto: 30000,
+        },
+      ],
+      journals: [],
+      lots: [lot("L1", "Lote A")],
+    });
+    writeFarmBookToStorage("finca-b", {
+      farmId: "finca-b",
+      settings: { ...EMPTY_SETTINGS },
+      sessions: [
+        session({ id: "b1", totKg: 50, totPay: 20000, totAlim: 0 }),
+      ],
+      batches: [],
+      liquidations: [],
+      sales: [],
+      costs: [],
+      journals: [],
+      lots: [lot("L2", "Lote B")],
+    });
+
+    const a = rollupFarmBook(
+      "finca-a",
+      "A",
+      readFarmBookFromStorage("finca-a"),
+    );
+    const b = rollupFarmBook(
+      "finca-b",
+      "B",
+      readFarmBookFromStorage("finca-b"),
+    );
+
+    // Isolation
+    assert.equal(a.kgCereza, 100);
+    assert.equal(b.kgCereza, 50);
+    assert.equal(a.moneyIn, 200000);
+    assert.equal(b.moneyIn, 0);
+    assert.equal(a.moneyOut, 50000 + 8000 + 30000);
+    assert.equal(b.moneyOut, 20000);
+    assert.equal(a.talentoPay, 50000);
+    assert.equal(b.talentoPay, 20000);
+    assert.ok(a.costoKg != null);
+    assert.equal(Math.round(a.costoKg! * 1000) / 1000, (50000 + 8000) / 100);
+    assert.equal(b.costoKg, 20000 / 50);
+
+    const summary = buildConsolidado([
+      { id: "finca-a", name: "A", createdAt: "" },
+      { id: "finca-b", name: "B", createdAt: "" },
+    ]);
+    assert.equal(summary.totalKgCereza, 150);
+    assert.equal(summary.totalMoneyIn, 200000);
+    assert.equal(summary.totalMoneyOut, a.moneyOut + b.moneyOut);
+    assert.equal(summary.totalTalentoPay, 70000);
+    assert.equal(summary.farmCount, 2);
+    // costo/kg consolidado = suma costo cosecha / suma kg (no promedio de ratios)
+    assert.ok(summary.costoKg != null);
+    assert.equal(
+      Math.round(summary.costoKg! * 1000) / 1000,
+      (58000 + 20000) / 150,
+    );
+  });
+
+  it("vendible kg is pergamino in bodega without sale; empty if none", () => {
+    writeFarmBookToStorage("finca-a", {
+      farmId: "finca-a",
+      settings: { ...EMPTY_SETTINGS },
+      sessions: [],
+      batches: [
+        {
+          id: "bat1",
+          sessionId: "s1",
+          code: "B-1",
+          fecha: "2026-09-10",
+          lote: "L1",
+          kgCereza: 120,
+          kgActual: 20,
+          factor: 6,
+          events: [
+            {
+              id: "e1",
+              stage: "bodega",
+              skipped: false,
+              at: "2026-09-10T12:00:00.000Z",
+              kgIn: 20,
+              kgOut: 20,
+              notas: "",
+              responsable: "",
+            },
+          ],
+          saleId: null,
+        },
+      ],
+      liquidations: [],
+      sales: [],
+      costs: [],
+      journals: [],
+      lots: [],
+    });
+    writeFarmBookToStorage("finca-b", {
+      farmId: "finca-b",
+      settings: { ...EMPTY_SETTINGS },
+      sessions: [],
+      batches: [],
+      liquidations: [],
+      sales: [],
+      costs: [],
+      journals: [],
+      lots: [],
+    });
+    const a = rollupFarmBook(
+      "finca-a",
+      "A",
+      readFarmBookFromStorage("finca-a"),
+    );
+    const b = rollupFarmBook(
+      "finca-b",
+      "B",
+      readFarmBookFromStorage("finca-b"),
+    );
+    assert.equal(a.kgVendible, 20);
+    assert.equal(b.kgVendible, 0);
+    const summary = buildConsolidado([
+      { id: "finca-a", name: "A", createdAt: "" },
+      { id: "finca-b", name: "B", createdAt: "" },
+    ]);
+    assert.equal(summary.totalKgVendible, 20);
+  });
+
 });
