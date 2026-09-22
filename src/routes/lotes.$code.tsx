@@ -1,16 +1,39 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { ArrowLeft, ChevronRight, Leaf, Sprout, FlaskConical, Shovel } from "lucide-react";
+import { WriteGate } from "@/components/write-gate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHint, CardTitle } from "@/components/ui/card";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { DecimalInput, MoneyInput, Select } from "@/components/ui/fields";
 import { Kpi } from "@/components/kpi";
 import { Table, Td, Th } from "@/components/ui/table";
-import { fmtDate, fmtKg, fmtMoney, fmtNum } from "@/lib/format";
+import { fmtDate, fmtKg, fmtMoney, fmtNum, n, todayISO } from "@/lib/format";
 import { lotByCode, rollupCode, type LotStatus } from "@/lib/lots";
+import {
+  LABOR_TIPOS,
+  NUTRITION_ESTADOS,
+  NUTRITION_UNIDADES,
+  NUTRITION_VIAS,
+  laborTipoLabel,
+  laboresForLot,
+  nutritionEstadoLabel,
+  nutritionViaLabel,
+  nutritionForLot,
+} from "@/lib/lot-ops";
 import { farmStats } from "@/lib/stats";
 import { useFarm } from "@/lib/store";
-import type { HarvestSession } from "@/lib/types";
+import type {
+  HarvestSession,
+  LaborTipo,
+  LotLabor,
+  LotNutrition,
+  NutritionEstado,
+  NutritionUnidad,
+  NutritionVia,
+} from "@/lib/types";
+import { uid } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 const FACES = [
@@ -50,6 +73,15 @@ function LotRoomPage() {
       .slice()
       .sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0));
   }, [farm.sessions, farm.lots, code]);
+
+  const lotLabores = useMemo(
+    () => laboresForLot(farm.labores, code, { farmId: farm.farmId }),
+    [farm.labores, code, farm.farmId],
+  );
+  const lotNutrition = useMemo(
+    () => nutritionForLot(farm.nutrition, code, { farmId: farm.farmId }),
+    [farm.nutrition, code, farm.farmId],
+  );
 
   const kpi = S.byLot[code] ?? { kg: 0, cost: 0, hrs: 0, n: 0 };
 
@@ -145,15 +177,19 @@ function LotRoomPage() {
         />
       ) : null}
       {cara === "labores" ? (
-        <ComingFace
-          title="Labores"
-          body="Aquí verá podas, plateos, desyerbes y otras labores del lote — con fecha, responsable y costo. Aún no hay registro; la cara queda lista para cuando el libro lo soporte."
+        <LaboresFace
+          code={lot.code}
+          lotName={lot.nombre}
+          farmId={farm.farmId}
+          items={lotLabores}
         />
       ) : null}
       {cara === "abono" ? (
-        <ComingFace
-          title="Nutrición"
-          body="Nutrición: fertilizaciones y enmiendas por lote: producto, dosis, fecha y costo. Sin datos inventados — cuando exista el modelo, esta cara lo mostrará."
+        <NutritionFace
+          code={lot.code}
+          lotName={lot.nombre}
+          farmId={farm.farmId}
+          items={lotNutrition}
         />
       ) : null}
       {cara === "cultivo" ? (
@@ -258,6 +294,467 @@ function CosechaFace({
                       >
                         Editar
                       </Link>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function LaboresFace({
+  code,
+  lotName,
+  farmId,
+  items,
+}: {
+  code: string;
+  lotName: string;
+  farmId: string;
+  items: LotLabor[];
+}) {
+  const saveLabor = useFarm((s) => s.saveLabor);
+  const settings = useFarm((s) => s.settings);
+  const [fecha, setFecha] = useState(todayISO());
+  const [tipo, setTipo] = useState<LaborTipo>("plateo");
+  const [notas, setNotas] = useState("");
+  const [responsable, setResponsable] = useState(settings.responsable || "");
+  const [jornal, setJornal] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!fecha) {
+      setErr("Indique la fecha.");
+      return;
+    }
+    if (!responsable.trim()) {
+      setErr("Indique quién hizo o supervisó la labor.");
+      return;
+    }
+    const j = n(jornal);
+    if (j < 0) {
+      setErr("El jornal no puede ser negativo.");
+      return;
+    }
+    setErr(null);
+    const row: LotLabor = {
+      id: uid("lab"),
+      farmId,
+      fecha,
+      lote: code,
+      tipo,
+      notas: notas.trim(),
+      responsable: responsable.trim(),
+    };
+    if (j > 0) row.jornal = j;
+    saveLabor(row);
+    setNotas("");
+    setJornal("");
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-subtle">
+          Labores de campo
+        </p>
+        <h2 className="mt-1 font-display text-3xl tracking-tight">{lotName}</h2>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          Plateo, poda, deschupone, broca, sombra u otra labor de campo. No es
+          fertilización — eso vive en Nutrición. Sin kg de cosecha aquí.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Kpi label="Registros" value={String(items.length)} />
+        <Kpi
+          label="Última"
+          value={items[0] ? fmtDate(items[0].fecha) : "—"}
+        />
+        <Kpi
+          label="Con jornal"
+          value={String(items.filter((x) => (x.jornal ?? 0) > 0).length)}
+          hint="→ talento si hay monto"
+        />
+      </div>
+
+      <Card>
+        <CardTitle>Registrar labor</CardTitle>
+        <CardHint>
+          Fecha, tipo de campo y quién. El jornal es opcional: si lo anota, queda
+          etiquetado para talento/gente; si no, no entra a Pulso.
+        </CardHint>
+        <WriteGate>
+          <form onSubmit={submit} className="mt-5 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Fecha">
+                <Input
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Tipo de labor">
+                <Select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value as LaborTipo)}
+                >
+                  {LABOR_TIPOS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Quién">
+              <Input
+                value={responsable}
+                onChange={(e) => setResponsable(e.target.value)}
+                placeholder="Nombre de quien hizo o supervisó"
+                autoComplete="name"
+                required
+              />
+            </Field>
+            <Field label="Jornal / M.O." hint="opcional · talento">
+              <MoneyInput value={jornal} onValue={setJornal} />
+            </Field>
+            <Field label="Notas" hint="opcional">
+              <Textarea
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                placeholder="Qué se hizo, condiciones, observaciones…"
+                rows={3}
+              />
+            </Field>
+            {err ? (
+              <p className="text-sm text-danger" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit">Guardar labor</Button>
+              {savedFlash ? (
+                <span className="text-sm text-accent">Guardado</span>
+              ) : null}
+            </div>
+          </form>
+        </WriteGate>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-border px-6 py-5 md:px-7">
+          <CardTitle>Labores de {lotName}</CardTitle>
+          <CardHint>Orden por fecha · solo este lote · farm+lote etiquetados.</CardHint>
+        </div>
+        {!items.length ? (
+          <div className="px-6 py-10 text-center md:px-7">
+            <p className="font-display text-2xl text-fg">Sin labores aún</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              Cuando registre plateo, poda u otra labor de campo, aparecerá aquí
+              con fecha y quién. Vacío honesto — sin datos inventados.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Fecha</Th>
+                  <Th>Tipo</Th>
+                  <Th>Quién</Th>
+                  <Th className="text-right">Jornal</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.slice(0, 20).map((row) => (
+                  <tr key={row.id}>
+                    <Td className="tabular whitespace-nowrap">
+                      {fmtDate(row.fecha)}
+                    </Td>
+                    <Td>
+                      <Badge tone="muted">{laborTipoLabel(row.tipo)}</Badge>
+                    </Td>
+                    <Td className="text-sm">
+                      {row.responsable || (
+                        <span className="text-subtle">—</span>
+                      )}
+                      {row.notas ? (
+                        <div className="mt-0.5 max-w-[12rem] truncate text-xs text-subtle">
+                          {row.notas}
+                        </div>
+                      ) : null}
+                    </Td>
+                    <Td className="text-right tabular text-sm">
+                      {(row.jornal ?? 0) > 0 ? fmtMoney(row.jornal!) : "—"}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function NutritionFace({
+  code,
+  lotName,
+  farmId,
+  items,
+}: {
+  code: string;
+  lotName: string;
+  farmId: string;
+  items: LotNutrition[];
+}) {
+  const saveNutrition = useFarm((s) => s.saveNutrition);
+  const [fecha, setFecha] = useState(todayISO());
+  const [via, setVia] = useState<NutritionVia>("suelo");
+  const [producto, setProducto] = useState("");
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState<NutritionUnidad>("kg");
+  const [estado, setEstado] = useState<NutritionEstado>("hecha");
+  const [notas, setNotas] = useState("");
+  const [costo, setCosto] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const hechas = items.filter((x) => x.estado === "hecha").length;
+  const plan = items.filter((x) => x.estado === "planificada").length;
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!fecha) {
+      setErr("Indique la fecha.");
+      return;
+    }
+    if (!producto.trim()) {
+      setErr("Indique el producto aplicado.");
+      return;
+    }
+    const qty = n(cantidad);
+    if (qty <= 0) {
+      setErr("Indique cantidad mayor a cero (kg o bultos).");
+      return;
+    }
+    const c = n(costo);
+    if (c < 0) {
+      setErr("El costo no puede ser negativo.");
+      return;
+    }
+    setErr(null);
+    const row: LotNutrition = {
+      id: uid("nut"),
+      farmId,
+      fecha,
+      lote: code,
+      via,
+      producto: producto.trim(),
+      cantidad: qty,
+      unidad,
+      estado,
+      notas: notas.trim(),
+    };
+    if (c > 0) row.costoProducto = c;
+    saveNutrition(row);
+    setProducto("");
+    setCantidad("");
+    setNotas("");
+    setCosto("");
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-subtle">
+          Nutrición · suelo / foliar
+        </p>
+        <h2 className="mt-1 font-display text-3xl tracking-tight">{lotName}</h2>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          Solo aplicaciones al suelo o foliar: producto, cantidad y fecha. El
+          análisis de suelos es contexto (notas), no un modelo Cenicafé. Sin kg
+          de cosecha aquí.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Kpi label="Registros" value={String(items.length)} />
+        <Kpi label="Hechas" value={String(hechas)} />
+        <Kpi label="Planificadas" value={String(plan)} />
+      </div>
+
+      <Card>
+        <CardTitle>Registrar aplicación</CardTitle>
+        <CardHint>
+          Producto + kg/bultos + fecha. Costo del producto opcional: si lo anota,
+          queda para dinero saliente / $/kg; si no, no entra a Pulso.
+        </CardHint>
+        <WriteGate>
+          <form onSubmit={submit} className="mt-5 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Fecha">
+                <Input
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Vía">
+                <Select
+                  value={via}
+                  onChange={(e) => setVia(e.target.value as NutritionVia)}
+                >
+                  {NUTRITION_VIAS.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Producto">
+              <Input
+                value={producto}
+                onChange={(e) => setProducto(e.target.value)}
+                placeholder="Ej. 15-15-15, cal dolomita, urea…"
+                required
+              />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Cantidad">
+                <DecimalInput
+                  value={cantidad}
+                  onValue={setCantidad}
+                  decimals={1}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label="Unidad">
+                <Select
+                  value={unidad}
+                  onChange={(e) =>
+                    setUnidad(e.target.value as NutritionUnidad)
+                  }
+                >
+                  {NUTRITION_UNIDADES.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Estado">
+                <Select
+                  value={estado}
+                  onChange={(e) =>
+                    setEstado(e.target.value as NutritionEstado)
+                  }
+                >
+                  {NUTRITION_ESTADOS.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Costo producto" hint="opcional · dinero saliente">
+              <MoneyInput value={costo} onValue={setCosto} />
+            </Field>
+            <Field
+              label="Notas / análisis"
+              hint="contexto · no es consejo científico"
+            >
+              <Textarea
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                placeholder="Análisis de suelos, dosis por planta, clima…"
+                rows={3}
+              />
+            </Field>
+            {err ? (
+              <p className="text-sm text-danger" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit">Guardar aplicación</Button>
+              {savedFlash ? (
+                <span className="text-sm text-accent">Guardado</span>
+              ) : null}
+            </div>
+          </form>
+        </WriteGate>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-border px-6 py-5 md:px-7">
+          <CardTitle>Nutrición de {lotName}</CardTitle>
+          <CardHint>
+            Orden por fecha · suelo/foliar · sin recomendaciones inventadas.
+          </CardHint>
+        </div>
+        {!items.length ? (
+          <div className="px-6 py-10 text-center md:px-7">
+            <p className="font-display text-2xl text-fg">Sin aplicaciones aún</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+              Registre una aplicación al suelo o foliar. Preferimos vacío
+              honesto a cifras o consejos inventados.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Fecha</Th>
+                  <Th>Producto</Th>
+                  <Th className="text-right">Cant.</Th>
+                  <Th>Estado</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.slice(0, 20).map((row) => (
+                  <tr key={row.id}>
+                    <Td className="tabular whitespace-nowrap">
+                      {fmtDate(row.fecha)}
+                    </Td>
+                    <Td>
+                      <div className="text-sm">{row.producto}</div>
+                      <div className="mt-0.5 text-xs text-subtle">
+                        {nutritionViaLabel(row.via)}
+                        {row.notas ? ` · ${row.notas}` : ""}
+                      </div>
+                    </Td>
+                    <Td className="text-right tabular text-sm">
+                      {fmtNum(row.cantidad, 1)} {row.unidad}
+                      {(row.costoProducto ?? 0) > 0 ? (
+                        <div className="text-xs text-subtle">
+                          {fmtMoney(row.costoProducto!)}
+                        </div>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      <Badge
+                        tone={row.estado === "hecha" ? "ok" : "warn"}
+                      >
+                        {nutritionEstadoLabel(row.estado)}
+                      </Badge>
                     </Td>
                   </tr>
                 ))}
