@@ -29,6 +29,7 @@ export type EmptyFarmBook = {
   nutrition: [];
   cultivos: [];
   personas: [];
+  plantas: [];
 };
 
 export const EMPTY_SETTINGS: Settings = {
@@ -64,6 +65,7 @@ export function createEmptyFarmBook(farmId: string = FARM_ID): EmptyFarmBook {
     nutrition: [],
     cultivos: [],
     personas: [],
+    plantas: [],
   };
 }
 
@@ -184,6 +186,8 @@ export type PersistedFarmBookSlice = {
   cultivos?: unknown[];
   /** Talento · gente de finca (farm-tagged). */
   personas?: unknown[];
+  /** Stand de plantas por lote (Cultivo map foundation). */
+  plantas?: unknown[];
 };
 
 /**
@@ -252,6 +256,7 @@ export function readFarmBookFromStorage(
       nutrition: Array.isArray(s.nutrition) ? s.nutrition : [],
       cultivos: Array.isArray(s.cultivos) ? s.cultivos : [],
       personas: Array.isArray(s.personas) ? s.personas : [],
+      plantas: Array.isArray(s.plantas) ? s.plantas : [],
     };
   } catch {
     return null;

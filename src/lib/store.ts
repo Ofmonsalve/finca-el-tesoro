@@ -27,6 +27,7 @@ import type {
   LotCultivo,
   LotLabor,
   LotNutrition,
+  LotPlant,
   PayModel,
   ProcessBatch,
   ProcessEvent,
@@ -34,7 +35,12 @@ import type {
   Settings,
   WorkerRow,
 } from "./types";
-import { upsertById, upsertCultivoForLot } from "./lot-ops";
+import {
+  plantsForLot,
+  plantStandCount,
+  upsertById,
+  upsertCultivoForLot,
+} from "./lot-ops";
 import { upsertPersona } from "./talento";
 import {
   computeSessionWorkers,
@@ -75,6 +81,7 @@ export type FarmState = {
   nutrition: LotNutrition[];
   cultivos: LotCultivo[];
   personas: FarmPerson[];
+  plantas: LotPlant[];
   setHydrated: (v: boolean) => void;
   updateSettings: (p: Partial<Settings>) => void;
   saveLot: (lot: FarmLot) => { ok: boolean; error?: string };
@@ -104,6 +111,8 @@ export type FarmState = {
   saveNutrition: (n: LotNutrition) => void;
   saveCultivo: (c: LotCultivo) => void;
   savePersona: (p: FarmPerson) => void;
+  savePlant: (p: LotPlant) => void;
+  savePlantsBatch: (rows: LotPlant[]) => void;
   saveJournal: (j: JournalEntry) => void;
   importBook: (data: unknown) => { ok: boolean; error?: string };
   exportBook: () => Record<string, unknown>;
@@ -241,6 +250,7 @@ export const useFarm = create<FarmState>()(
       nutrition: [],
       cultivos: [],
       personas: [],
+      plantas: [],
       setHydrated: (v) => set({ hydrated: v }),
       updateSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       saveLot: (lot) => {
@@ -537,6 +547,47 @@ export const useFarm = create<FarmState>()(
       savePersona: (row) => {
         set({ personas: upsertPersona(get().personas ?? [], row) });
       },
+      savePlant: (row) => {
+        const plantas = upsertById(get().plantas ?? [], row);
+        const next: Partial<FarmState> = { plantas };
+        const design = (get().cultivos ?? []).find(
+          (c) => c.farmId === row.farmId && c.lote === row.lote,
+        );
+        if (design) {
+          const stand = plantsForLot(plantas, row.lote, { farmId: row.farmId });
+          const count = plantStandCount(stand);
+          next.cultivos = upsertCultivoForLot(get().cultivos, {
+            ...design,
+            plantasApprox: count,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        set(next);
+      },
+      savePlantsBatch: (rows) => {
+        if (!rows.length) return;
+        let plantas = get().plantas ?? [];
+        for (const row of rows) {
+          plantas = upsertById(plantas, row);
+        }
+        const next: Partial<FarmState> = { plantas };
+        const sample = rows[0];
+        const design = (get().cultivos ?? []).find(
+          (c) => c.farmId === sample.farmId && c.lote === sample.lote,
+        );
+        if (design) {
+          const stand = plantsForLot(plantas, sample.lote, {
+            farmId: sample.farmId,
+          });
+          const count = plantStandCount(stand);
+          next.cultivos = upsertCultivoForLot(get().cultivos, {
+            ...design,
+            plantasApprox: count,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        set(next);
+      },
       saveJournal: (j) => set({ journals: [j, ...get().journals] }),
       exportBook: () => ({
         v: 1,
@@ -554,6 +605,7 @@ export const useFarm = create<FarmState>()(
         nutrition: get().nutrition,
         cultivos: get().cultivos,
         personas: get().personas ?? [],
+        plantas: get().plantas ?? [],
       }),
       importBook: (data) => {
         if (!data || typeof data !== "object") {
@@ -580,6 +632,7 @@ export const useFarm = create<FarmState>()(
           nutrition: Array.isArray(p.nutrition) ? p.nutrition : [],
           cultivos: Array.isArray(p.cultivos) ? p.cultivos : [],
           personas: Array.isArray(p.personas) ? p.personas : [],
+          plantas: Array.isArray(p.plantas) ? p.plantas : [],
         });
         return { ok: true };
       },
@@ -625,6 +678,7 @@ export const useFarm = create<FarmState>()(
             nutrition: current.nutrition,
             cultivos: current.cultivos,
             personas: current.personas ?? [],
+            plantas: current.plantas ?? [],
           };
           writeFarmBookToStorage(current.farmId, slice);
         }
@@ -651,6 +705,7 @@ export const useFarm = create<FarmState>()(
             nutrition: (loaded.nutrition as FarmState["nutrition"]) ?? [],
             cultivos: (loaded.cultivos as FarmState["cultivos"]) ?? [],
             personas: (loaded.personas as FarmState["personas"]) ?? [],
+            plantas: (loaded.plantas as FarmState["plantas"]) ?? [],
           });
         } else {
           const empty = createEmptyFarmBook(id);
@@ -668,6 +723,7 @@ export const useFarm = create<FarmState>()(
             nutrition: [],
             cultivos: [],
             personas: [],
+            plantas: [],
           });
           writeFarmBookToStorage(id, {
             farmId: id,
@@ -683,6 +739,7 @@ export const useFarm = create<FarmState>()(
             nutrition: [],
             cultivos: [],
             personas: [],
+            plantas: [],
           });
         }
         return { ok: true };
@@ -745,6 +802,9 @@ export const useFarm = create<FarmState>()(
           personas: Array.isArray(p.personas)
             ? p.personas
             : current.personas ?? [],
+          plantas: Array.isArray(p.plantas)
+            ? p.plantas
+            : current.plantas ?? [],
         };
       },
       partialize: (s) => ({
@@ -761,6 +821,7 @@ export const useFarm = create<FarmState>()(
         nutrition: s.nutrition,
         cultivos: s.cultivos,
         personas: s.personas ?? [],
+        plantas: s.plantas ?? [],
       }),
     },
   ),

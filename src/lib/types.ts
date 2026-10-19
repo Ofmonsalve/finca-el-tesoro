@@ -238,6 +238,30 @@ export type LotCultivo = {
  * Work role on the finca (Talento / gente). Not auth/app permissions.
  * Locked catalog: recolector | mayordomo | jornalero | beneficio | otro.
  */
+/**
+ * Individual plant in a lot stand (Cultivo · mapa de plantas — v1 list).
+ * Tagged farmId+lote. Not GIS coordinates — structured stand foundation.
+ * Does NOT feed money into Pulso/Inteligencia.
+ */
+export type PlantEstado = "viva" | "zoca" | "muerta";
+
+export type LotPlant = {
+  id: string;
+  farmId: string;
+  lote: LotCode;
+  /** Optional farmer code / tag on the plant. */
+  code?: string;
+  /** Row / surco number (1-based when set). */
+  surco?: number;
+  /** Position within the surco (1-based when set). */
+  position?: number;
+  variedad: string;
+  estado: PlantEstado;
+  /** Planting year (approx). */
+  plantedYear?: number;
+  notes?: string;
+};
+
 export type PersonRole =
   | "recolector"
   | "mayordomo"
